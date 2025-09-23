@@ -12,9 +12,8 @@ INPUT_TYPE = dict[str, "MAIN_TYPE"] | list["MAIN_TYPE"]
 MAIN_TYPE = INPUT_TYPE | datetime | date | str | int | float | bool
 
 
-def _combine_json_files(input_folder: Path) -> list[MAIN_TYPE]:
+def _combine_json_files(input_files: list[Path]) -> list[MAIN_TYPE]:
     """Combine all JSON files in the input folder into a single list of dicts/lists."""
-    input_files = input_folder.glob("*.json")
     input_contents = [file.read_bytes() for file in input_files]
     return [json.loads(content) for content in input_contents]
 
@@ -77,12 +76,57 @@ def _remove_wrapper_class(lines: list[str]) -> None:
             break
 
 
-def generate(
+def generate_from_folder(
     input_folder: Path,
     output_file: Path,
     class_name: str | None = None,
 ) -> None:
-    input_data = _combine_json_files(input_folder)
+    """Generate Pydantic models from all JSON files in the input folder.
+
+    Args:
+        input_folder: The folder containing JSON files.
+        output_file: The file to write the generated models to.
+        class_name: The name of the main class to generate. If None, use the default
+        value from datamodel-code-generator.
+
+    """
+    generate_from_files(list(input_folder.glob("*.json")), output_file, class_name)
+
+
+def generate_from_files(
+    input_files: list[Path],
+    output_file: Path,
+    class_name: str | None = None,
+) -> None:
+    """Generate Pydantic models from a list of JSON files.
+
+    Args:
+        input_files: The list of JSON files.
+        output_file: The file to write the generated models to.
+        class_name: The name of the main class to generate. If None, use the default
+        value from datamodel-code-generator.
+
+    """
+    input_data = _combine_json_files(input_files)
+    generate_from_object(input_data, output_file, class_name, replace_parent=True)
+
+
+def generate_from_object(
+    input_data: INPUT_TYPE,
+    output_file: Path,
+    class_name: str | None = None,
+    *,
+    replace_parent: bool = False,
+) -> None:
+    """Generate Pydantic models from a Python object (dict or list).
+
+    Args:
+        input_data: The input data as a dict or list.
+        output_file: The file to write the generated models to.
+        class_name: The name of the main class to generate. If None, use the default
+        value from datamodel-code-generator.
+        replace_parent: Whether to remove the parent wrapper class. Defaults to False.
+    """
     _try_to_convert_everything(input_data)
     builder = SchemaBuilder()
     builder.add_object(input_data)
@@ -100,10 +144,11 @@ def generate(
         output_datetime_class=datamodel_code_generator.DatetimeClassType.Awaredatetime,
     )
 
-    lines = output_file.read_text().splitlines()
-    _remove_wrapper_class(lines)
-    _update_class_name(lines, class_name or "Model")
-    output_file.write_text("\n".join(lines))
+    if replace_parent:
+        lines = output_file.read_text().splitlines()
+        _remove_wrapper_class(lines)
+        _update_class_name(lines, class_name or "Model")
+        output_file.write_text("\n".join(lines))
 
     subprocess.run(
         ["uv", "run", "ruff", "check", "--fix", str(output_file)],  # noqa: S607
