@@ -156,8 +156,12 @@ def generate_from_object(
     subprocess.run(
         ["uv", "run", "ruff", "check", "--fix", str(output_file)],  # noqa: S607
         check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
     )
     subprocess.run(
         ["uv", "run", "ruff", "format", str(output_file)],  # noqa: S607
         check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
     )
