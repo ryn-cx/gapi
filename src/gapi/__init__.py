@@ -150,6 +150,9 @@ def generate_from_object(
         _update_class_name(lines, class_name or "Model")
         output_file.write_text("\n".join(lines))
 
+    # datamodel-code-generator relies on a global installation of ruff which may not be
+    # present so it is more reliable to use uv to run ruff seperately because this is
+    # garanteed to work because uv is required to install this package.
     subprocess.run(
         ["uv", "run", "ruff", "check", "--fix", str(output_file)],  # noqa: S607
         check=False,
