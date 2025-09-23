@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "datamodel-code-generator>=0.33.0",
-    "genson",
+    "degenson",
 ]
 
 [build-system]
@@ -58,4 +58,4 @@ convention = "google"
 "tests/**/*.py" = ["S101"] # Asserts should be allowed in tests.
 
 [tool.uv.sources]
-genson = { git = "https://github.com/ryn-cx/GenSON" }
+degenson = { git = "https://github.com/ryn-cx/DeGenSON" }

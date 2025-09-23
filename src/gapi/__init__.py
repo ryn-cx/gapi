@@ -6,6 +6,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 import datamodel_code_generator
+from degenson import SchemaBuilder
 
 INPUT_TYPE = dict[str, "MAIN_TYPE"] | list["MAIN_TYPE"]
 MAIN_TYPE = INPUT_TYPE | datetime | date | str | int | float | bool
@@ -83,6 +84,8 @@ def generate(
 ) -> None:
     input_data = _combine_json_files(input_folder)
     _try_to_convert_everything(input_data)
+    builder = SchemaBuilder()
+    builder.add_object(input_data)
     output_file.parent.mkdir(parents=True, exist_ok=True)
     datamodel_code_generator.generate(
         input_=input_data,
