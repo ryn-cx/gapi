@@ -101,6 +101,8 @@ def generate_from_folder(
     output_file: Path,
     class_name: str | None = None,
     overrides: list[Override] | None = None,
+    *,
+    skip_conversions: bool = False,
 ) -> None:
     """Generate Pydantic models from all JSON files in the input folder.
 
@@ -111,6 +113,8 @@ def generate_from_folder(
         value from datamodel-code-generator.
         overrides: A list of Override objects to modify specific fields in the generated
         models.
+        skip_conversions: Whether to skip trying to convert string values to their
+        appropriate types. Defaults to False.
 
     """
     generate_from_files(
@@ -118,6 +122,7 @@ def generate_from_folder(
         output_file,
         class_name,
         overrides,
+        skip_conversions=skip_conversions,
     )
 
 
@@ -126,6 +131,8 @@ def generate_from_files(
     output_file: Path,
     class_name: str | None = None,
     overrides: list[Override] | None = None,
+    *,
+    skip_conversions: bool = False,
 ) -> None:
     """Generate Pydantic models from a list of JSON files.
 
@@ -136,6 +143,8 @@ def generate_from_files(
         value from datamodel-code-generator.
         overrides: A list of Override objects to modify specific fields in the generated
         models.
+        skip_conversions: Whether to skip trying to convert string values to their
+        appropriate types. Defaults to False.
 
     """
     input_data = _combine_json_files(input_files)
@@ -145,16 +154,18 @@ def generate_from_files(
         class_name,
         overrides,
         replace_parent=True,
+        skip_conversions=skip_conversions,
     )
 
 
-def generate_from_object(
+def generate_from_object(  # noqa: PLR0913
     input_data: INPUT_TYPE,
     output_file: Path,
     class_name: str | None = None,
     overrides: list[Override] | None = None,
     *,
     replace_parent: bool = False,
+    skip_conversions: bool = False,
 ) -> None:
     """Generate Pydantic models from a Python object (dict or list).
 
@@ -166,8 +177,11 @@ def generate_from_object(
         replace_parent: Whether to remove the parent wrapper class. Defaults to False.
         overrides: A list of Override objects to modify specific fields in the generated
         models.
+        skip_conversions: Whether to skip trying to convert string values to their
+        appropriate types. Defaults to False.
     """
-    _try_to_convert_everything(input_data)
+    if not skip_conversions:
+        _try_to_convert_everything(input_data)
     builder = SchemaBuilder()
     builder.add_object(input_data)
     output_file.parent.mkdir(parents=True, exist_ok=True)
