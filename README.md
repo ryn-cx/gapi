@@ -12,13 +12,13 @@
 
 ## ✨ Features
 
-- 📁 **Multiple Inputs Supported** - Supporta a folder, list of files, or a Python
+- 📁 **Multiple Inputs Supported** - Supports a folder, list of files, or a Python
   object as an input.
-- 🕐 **Smart Date Detection** - Automatically detects and converts date and datetime strings in JSON data
-- 🏗️ **Clean Model Generation** - Generates Pydantic v2 models
+- 🕐 **Smart Date Detection** - Automatically detects and converts date and datetime strings in JSON data.
+- 🏗️ **Clean Model Generation** - Generates Pydantic v2 models.
 - ⚡ **Powerful backends** - Built upon
   [datamodel-code-generator](https://github.com/koxudaxi/datamodel-code-generator) and a
-  [forked version](https:/github.com/ryn-cx/DeGenSON) of
+  [forked version](https://github.com/ryn-cx/DeGenSON) of
   [GenSON](https://github.com/wolverdude/GenSON).
 
 ## 📦 Installation
