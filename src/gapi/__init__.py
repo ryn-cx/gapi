@@ -7,9 +7,16 @@ from pathlib import Path
 
 import datamodel_code_generator
 from degenson import SchemaBuilder
+from pydantic import BaseModel
 
 INPUT_TYPE = dict[str, "MAIN_TYPE"] | list["MAIN_TYPE"]
 MAIN_TYPE = INPUT_TYPE | datetime | date | str | int | float | bool
+
+
+class Override(BaseModel):
+    class_name: str
+    variable_name: str
+    replacement: str
 
 
 def _combine_json_files(input_files: list[Path]) -> list[MAIN_TYPE]:
@@ -76,10 +83,24 @@ def _remove_wrapper_class(lines: list[str]) -> None:
             break
 
 
+def _apply_overrides(lines: list[str], overrides: list[Override]) -> None:
+    for override in overrides:
+        correct_class = False
+        for i, line in enumerate(lines):
+            if line.startswith("class "):
+                if line.startswith(f"class {override.class_name}(BaseModel):"):
+                    correct_class = True
+                else:
+                    correct_class = False
+            if correct_class and line.startswith(f"    {override.variable_name}: "):
+                lines[i] = f"    {override.variable_name}: {override.replacement}"
+
+
 def generate_from_folder(
     input_folder: Path,
     output_file: Path,
     class_name: str | None = None,
+    overrides: list[Override] | None = None,
 ) -> None:
     """Generate Pydantic models from all JSON files in the input folder.
 
@@ -88,15 +109,23 @@ def generate_from_folder(
         output_file: The file to write the generated models to.
         class_name: The name of the main class to generate. If None, use the default
         value from datamodel-code-generator.
+        overrides: A list of Override objects to modify specific fields in the generated
+        models.
 
     """
-    generate_from_files(list(input_folder.glob("*.json")), output_file, class_name)
+    generate_from_files(
+        list(input_folder.glob("*.json")),
+        output_file,
+        class_name,
+        overrides,
+    )
 
 
 def generate_from_files(
     input_files: list[Path],
     output_file: Path,
     class_name: str | None = None,
+    overrides: list[Override] | None = None,
 ) -> None:
     """Generate Pydantic models from a list of JSON files.
 
@@ -105,17 +134,25 @@ def generate_from_files(
         output_file: The file to write the generated models to.
         class_name: The name of the main class to generate. If None, use the default
         value from datamodel-code-generator.
+        overrides: A list of Override objects to modify specific fields in the generated
+        models.
 
     """
     input_data = _combine_json_files(input_files)
-    _try_to_convert_everything(input_data)
-    generate_from_object(input_data, output_file, class_name, replace_parent=True)
+    generate_from_object(
+        input_data,
+        output_file,
+        class_name,
+        overrides,
+        replace_parent=True,
+    )
 
 
 def generate_from_object(
     input_data: INPUT_TYPE,
     output_file: Path,
     class_name: str | None = None,
+    overrides: list[Override] | None = None,
     *,
     replace_parent: bool = False,
 ) -> None:
@@ -127,7 +164,10 @@ def generate_from_object(
         class_name: The name of the main class to generate. If None, use the default
         value from datamodel-code-generator.
         replace_parent: Whether to remove the parent wrapper class. Defaults to False.
+        overrides: A list of Override objects to modify specific fields in the generated
+        models.
     """
+    _try_to_convert_everything(input_data)
     builder = SchemaBuilder()
     builder.add_object(input_data)
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -144,11 +184,14 @@ def generate_from_object(
         output_datetime_class=datamodel_code_generator.DatetimeClassType.Awaredatetime,
     )
 
+    lines = output_file.read_text().splitlines()
     if replace_parent:
-        lines = output_file.read_text().splitlines()
         _remove_wrapper_class(lines)
         _update_class_name(lines, class_name or "Model")
         output_file.write_text("\n".join(lines))
+
+    if overrides:
+        _apply_overrides(lines, overrides)
 
     # datamodel-code-generator relies on a global installation of ruff which may not be
     # present so it is more reliable to use uv to run ruff seperately because this is
