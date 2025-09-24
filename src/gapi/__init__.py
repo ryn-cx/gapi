@@ -108,6 +108,7 @@ def generate_from_files(
 
     """
     input_data = _combine_json_files(input_files)
+    _try_to_convert_everything(input_data)
     generate_from_object(input_data, output_file, class_name, replace_parent=True)
 
 
@@ -127,7 +128,6 @@ def generate_from_object(
         value from datamodel-code-generator.
         replace_parent: Whether to remove the parent wrapper class. Defaults to False.
     """
-    _try_to_convert_everything(input_data)
     builder = SchemaBuilder()
     builder.add_object(input_data)
     output_file.parent.mkdir(parents=True, exist_ok=True)
