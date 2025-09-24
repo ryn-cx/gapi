@@ -188,10 +188,11 @@ def generate_from_object(
     if replace_parent:
         _remove_wrapper_class(lines)
         _update_class_name(lines, class_name or "Model")
-        output_file.write_text("\n".join(lines))
 
     if overrides:
         _apply_overrides(lines, overrides)
+
+    output_file.write_text("\n".join(lines))
 
     # datamodel-code-generator relies on a global installation of ruff which may not be
     # present so it is more reliable to use uv to run ruff seperately because this is
