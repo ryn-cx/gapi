@@ -70,14 +70,18 @@ def _update_class_name(lines: list[str], class_name: str) -> None:
         msg = f"Class name {class_name} already exists in the generated code."
         raise ValueError(msg)
 
-    for i, line in enumerate(lines):
-        if line == f"class {class_name}Item(BaseModel):":
+    for i in reversed(range(len(lines))):
+        # Assume that the last class will be the correct class because the class name
+        # can be modified depending on the name of the model. For example Models would
+        # have a child of Model but Model would have a child of ModelItem.
+        if lines[i].startswith("class "):
             lines[i] = f"class {class_name}(BaseModel):"
+            break
 
 
 def _remove_wrapper_class(lines: list[str]) -> None:
     """Remove the last class that is a wrapper around multiple files."""
-    for i in range(len(lines) - 1, -1, -1):
+    for i in reversed(range(len(lines))):
         if lines[i].startswith("class "):
             del lines[i:]
             break
