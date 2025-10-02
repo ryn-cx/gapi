@@ -190,10 +190,10 @@ def generate_from_object(  # noqa: PLR0913
     builder.add_object(input_data)
     output_file.parent.mkdir(parents=True, exist_ok=True)
     datamodel_code_generator.generate(
-        input_=input_data,
+        input_=builder.to_json(),
         output=output_file,
         class_name=class_name,
-        input_file_type=datamodel_code_generator.InputFileType.Dict,
+        input_file_type=datamodel_code_generator.InputFileType.JsonSchema,
         output_model_type=datamodel_code_generator.DataModelType.PydanticV2BaseModel,
         snake_case_field=True,
         disable_timestamp=True,
