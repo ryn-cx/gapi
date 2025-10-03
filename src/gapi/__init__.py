@@ -206,7 +206,7 @@ def _generate_from_genson(
     # datamodel-code-generator relies on a global installation of ruff which may not be
     # present, this is a backup to ensure the generated code is formatted if ruff
     # isn't available but uv is.
-    if shutil.which("uv") and not shutil.which("ruff"):
+    if shutil.which("uv"):
         subprocess.run(
             ["uv", "run", "ruff", "check", "--fix", str(output_file)],  # noqa: S607
             check=False,
