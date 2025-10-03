@@ -69,8 +69,8 @@ def _remove_redundant_files(input_files: list[Path]) -> None:
         # sure each file is necessary to generate the schema.
         for i, _ in enumerate(input_files):
             test_files = input_files[:i] + input_files[i + 1 :]
-            with tempfile.NamedTemporaryFile(delete=False) as fp2:
-                temp_file2 = Path(fp2.name)
+            with tempfile.NamedTemporaryFile(delete=False) as fp:
+                temp_file2 = Path(fp.name)
             try:
                 generate_from_files(test_files, temp_file2)
                 test_model_text = temp_file2.read_text()
