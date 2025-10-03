@@ -1,28 +1,21 @@
 import contextlib
 import json
+import logging
 import re
+import shutil
 import subprocess
+import tempfile
+from collections.abc import Mapping
 from datetime import date, datetime
 from pathlib import Path
 
 import datamodel_code_generator
 from degenson import SchemaBuilder
-from pydantic import BaseModel
 
-INPUT_TYPE = dict[str, "MAIN_TYPE"] | list["MAIN_TYPE"]
+INPUT_TYPE = Mapping[str, "MAIN_TYPE"] | list["MAIN_TYPE"]
 MAIN_TYPE = INPUT_TYPE | datetime | date | str | int | float | bool
 
-
-class Override(BaseModel):
-    class_name: str
-    variable_name: str
-    replacement: str
-
-
-def _combine_json_files(input_files: list[Path]) -> list[MAIN_TYPE]:
-    """Combine all JSON files in the input folder into a single list of dicts/lists."""
-    input_contents = [file.read_bytes() for file in input_files]
-    return [json.loads(content) for content in input_contents]
+logger = logging.getLogger(__name__)
 
 
 def _try_to_convert_datetime(
@@ -65,48 +58,42 @@ def _try_to_convert_everything(input_data: INPUT_TYPE) -> None:
             _try_to_convert_everything(value)
 
 
-def _update_class_name(lines: list[str], class_name: str) -> None:
-    if f"class {class_name}(BaseModel):" in lines:
-        msg = f"Class name {class_name} already exists in the generated code."
-        raise ValueError(msg)
+def _remove_redundant_files(input_files: list[Path]) -> None:
+    with tempfile.NamedTemporaryFile(delete=False) as fp:
+        temp_file = Path(fp.name)
+    try:
+        generate_from_files(input_files, temp_file)
+        complete_model_text = temp_file.read_text()
 
-    for i in reversed(range(len(lines))):
-        # Assume that the last class will be the correct class because the class name
-        # can be modified depending on the name of the model. For example Models would
-        # have a child of Model but Model would have a child of ModelItem.
-        if lines[i].startswith("class "):
-            lines[i] = f"class {class_name}(BaseModel):"
-            break
+        # Loop through all of the files while ignoring a specific file each time to make
+        # sure each file is necessary to generate the schema.
+        for i, _ in enumerate(input_files):
+            test_files = input_files[:i] + input_files[i + 1 :]
+            with tempfile.NamedTemporaryFile(delete=False) as fp2:
+                temp_file2 = Path(fp2.name)
+            try:
+                generate_from_files(test_files, temp_file2)
+                test_model_text = temp_file2.read_text()
 
-
-def _remove_wrapper_class(lines: list[str]) -> None:
-    """Remove the last class that is a wrapper around multiple files."""
-    for i in reversed(range(len(lines))):
-        if lines[i].startswith("class "):
-            del lines[i:]
-            break
-
-
-def _apply_overrides(lines: list[str], overrides: list[Override]) -> None:
-    for override in overrides:
-        correct_class = False
-        for i, line in enumerate(lines):
-            if line.startswith("class "):
-                if line.startswith(f"class {override.class_name}(BaseModel):"):
-                    correct_class = True
-                else:
-                    correct_class = False
-            if correct_class and line.startswith(f"    {override.variable_name}: "):
-                lines[i] = f"    {override.variable_name}: {override.replacement}"
+                if test_model_text == complete_model_text:
+                    logger.info("File %s is redundant", input_files[i].name)
+                    input_files[i].unlink()
+                    input_files.pop(i)
+                    _remove_redundant_files(input_files)
+                    return
+            finally:
+                temp_file2.unlink(missing_ok=True)
+    finally:
+        temp_file.unlink(missing_ok=True)
 
 
 def generate_from_folder(
     input_folder: Path,
     output_file: Path,
     class_name: str | None = None,
-    overrides: list[Override] | None = None,
     *,
     skip_conversions: bool = False,
+    remove_redundant_files: bool = False,
 ) -> None:
     """Generate Pydantic models from all JSON files in the input folder.
 
@@ -115,18 +102,18 @@ def generate_from_folder(
         output_file: The file to write the generated models to.
         class_name: The name of the main class to generate. If None, use the default
         value from datamodel-code-generator.
-        overrides: A list of Override objects to modify specific fields in the generated
-        models.
         skip_conversions: Whether to skip trying to convert string values to their
         appropriate types. Defaults to False.
+        remove_redundant_files: If a file has no effect on the generated schema remove
+        it.
 
     """
     generate_from_files(
         list(input_folder.glob("*.json")),
         output_file,
         class_name,
-        overrides,
         skip_conversions=skip_conversions,
+        remove_redundant_files=remove_redundant_files,
     )
 
 
@@ -134,9 +121,9 @@ def generate_from_files(
     input_files: list[Path],
     output_file: Path,
     class_name: str | None = None,
-    overrides: list[Override] | None = None,
     *,
     skip_conversions: bool = False,
+    remove_redundant_files: bool = False,
 ) -> None:
     """Generate Pydantic models from a list of JSON files.
 
@@ -145,30 +132,30 @@ def generate_from_files(
         output_file: The file to write the generated models to.
         class_name: The name of the main class to generate. If None, use the default
         value from datamodel-code-generator.
-        overrides: A list of Override objects to modify specific fields in the generated
-        models.
         skip_conversions: Whether to skip trying to convert string values to their
         appropriate types. Defaults to False.
+        remove_redundant_files: If a file has no effect on the generated schema remove
+        it.
 
     """
-    input_data = _combine_json_files(input_files)
-    generate_from_object(
-        input_data,
-        output_file,
-        class_name,
-        overrides,
-        replace_parent=True,
-        skip_conversions=skip_conversions,
-    )
+    if remove_redundant_files:
+        _remove_redundant_files(input_files)
+
+    builder = SchemaBuilder()
+    for file in input_files:
+        parsed_json = json.loads(file.read_text())
+        if not skip_conversions:
+            _try_to_convert_everything(parsed_json)
+        builder.add_object(parsed_json)
+
+    _generate_from_genson(builder, output_file, class_name)
 
 
-def generate_from_object(  # noqa: PLR0913
+def generate_from_object(
     input_data: INPUT_TYPE,
     output_file: Path,
     class_name: str | None = None,
-    overrides: list[Override] | None = None,
     *,
-    replace_parent: bool = False,
     skip_conversions: bool = False,
 ) -> None:
     """Generate Pydantic models from a Python object (dict or list).
@@ -179,8 +166,6 @@ def generate_from_object(  # noqa: PLR0913
         class_name: The name of the main class to generate. If None, use the default
         value from datamodel-code-generator.
         replace_parent: Whether to remove the parent wrapper class. Defaults to False.
-        overrides: A list of Override objects to modify specific fields in the generated
-        models.
         skip_conversions: Whether to skip trying to convert string values to their
         appropriate types. Defaults to False.
     """
@@ -188,9 +173,25 @@ def generate_from_object(  # noqa: PLR0913
         _try_to_convert_everything(input_data)
     builder = SchemaBuilder()
     builder.add_object(input_data)
+    _generate_from_genson(builder, output_file, class_name)
+
+
+def _generate_from_genson(
+    input_data: SchemaBuilder,
+    output_file: Path,
+    class_name: str | None = None,
+) -> None:
+    """Generate Pydantic models from a Python object (dict or list).
+
+    Args:
+        input_data: The input data from Genson.
+        output_file: The file to write the generated models to.
+        class_name: The name of the main class to generate. If None, use the default
+        value from datamodel-code-generator.
+    """
     output_file.parent.mkdir(parents=True, exist_ok=True)
     datamodel_code_generator.generate(
-        input_=builder.to_json(),
+        input_=input_data.to_json(),
         output=output_file,
         class_name=class_name,
         input_file_type=datamodel_code_generator.InputFileType.JsonSchema,
@@ -202,28 +203,19 @@ def generate_from_object(  # noqa: PLR0913
         output_datetime_class=datamodel_code_generator.DatetimeClassType.Awaredatetime,
     )
 
-    lines = output_file.read_text().splitlines()
-    if replace_parent:
-        _remove_wrapper_class(lines)
-        _update_class_name(lines, class_name or "Model")
-
-    if overrides:
-        _apply_overrides(lines, overrides)
-
-    output_file.write_text("\n".join(lines))
-
     # datamodel-code-generator relies on a global installation of ruff which may not be
-    # present so it is more reliable to use uv to run ruff seperately because this is
-    # garanteed to work because uv is required to install this package.
-    subprocess.run(
-        ["uv", "run", "ruff", "check", "--fix", str(output_file)],  # noqa: S607
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-    )
-    subprocess.run(
-        ["uv", "run", "ruff", "format", str(output_file)],  # noqa: S607
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-    )
+    # present, this is a backup to ensure the generated code is formatted if ruff
+    # isn't available but uv is.
+    if shutil.which("uv") and not shutil.which("ruff"):
+        subprocess.run(
+            ["uv", "run", "ruff", "check", "--fix", str(output_file)],  # noqa: S607
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
+        subprocess.run(
+            ["uv", "run", "ruff", "format", str(output_file)],  # noqa: S607
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
