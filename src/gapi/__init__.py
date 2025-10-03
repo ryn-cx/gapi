@@ -27,8 +27,8 @@ def _try_to_convert_datetime(
     strptimes = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z"]
     for strptime in strptimes:
         with contextlib.suppress(ValueError):
-            # This doesn't need to be a timezone, and adding .astimezone() will break
-            # the context manager.
+            # DTZ007 - This doesn't need to be a timezone, and adding .astimezone() will
+            # break the context manager.
             input_data[key] = datetime.strptime(value, strptime)  # noqa: DTZ007
 
 
