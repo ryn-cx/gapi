@@ -34,6 +34,19 @@ class TestGenerateFromObject:
         finally:
             output_file.unlink()
 
+    def test_timedelta_conversion(self) -> None:
+        """Test automatic timedelta conversion."""
+        expected_output_file = Path("tests/timedelta_conversion.output")
+        expected_output = expected_output_file.read_text()
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+            output_file = Path(f.name)
+        try:
+            data: dict[str, str] = {"test_duration": "P3D"}
+            generate_from_object(data, output_file, "TestTimedelta")
+            assert output_file.read_text() == expected_output
+        finally:
+            output_file.unlink()
+
     def test_skip_conversions(self) -> None:
         """Test skipping automatic type conversions."""
         expected_output_file = Path("tests/skip_conversions.output")

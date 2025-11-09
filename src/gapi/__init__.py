@@ -18,6 +18,10 @@ MAIN_TYPE = INPUT_TYPE | datetime | date | timedelta | str | int | float | bool
 logger = logging.getLogger(__name__)
 
 
+class PydanticTimeDelta(BaseModel):
+    timedelta: timedelta
+
+
 class PydanticDate(BaseModel):
     date: date
 
@@ -84,6 +88,9 @@ def _try_to_convert_values(input_data: INPUT_TYPE, key: str | int, value: str) -
 
     with contextlib.suppress(ValueError):
         input_data[key] = PydanticDate(date=value).date
+
+    with contextlib.suppress(ValueError):
+        input_data[key] = PydanticTimeDelta(timedelta=value).timedelta
 
 
 def _try_to_convert_everything(input_data: INPUT_TYPE) -> None:

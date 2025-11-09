@@ -103,7 +103,7 @@ wheels = [
 [[package]]
 name = "degenson"
 version = "1.3.0"
-source = { git = "https://github.com/ryn-cx/DeGenSON#51512cfec99b752524b249c5c370bcbe31576aa8" }
+source = { git = "https://github.com/ryn-cx/DeGenSON#ce68705f09ea1d7398233b46d0ba0b39aac43687" }
 
 [[package]]
 name = "dill"
