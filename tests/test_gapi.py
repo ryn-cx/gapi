@@ -1,8 +1,10 @@
 import json
 import tempfile
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import ClassVar
 
-from gapi import generate_from_files, generate_from_object
+from gapi import MAIN_TYPE, anonymize_values, generate_from_files, generate_from_object
 
 
 class TestGenerateFromObject:
@@ -165,3 +167,129 @@ class TestGenerateFromFiles:
             assert output_file.read_text() == expected_output
             number_of_remaining_files = len(list(tmpdir.glob("*.json")))
             assert number_of_remaining_files == 3  # noqa: PLR2004
+
+
+class TestAnonymizeValue:
+    """Test anonymize_values function with all supported types."""
+
+    def test_anonymize_bool(self) -> None:
+        """Test anonymizing boolean values."""
+        assert anonymize_values(input_data=True) is True
+        assert anonymize_values(input_data=False) is True
+
+    def test_anonymize_int(self) -> None:
+        """Test anonymizing integer values."""
+        assert anonymize_values(1) == 0
+        assert anonymize_values(0) == 0
+
+    def test_anonymize_float(self) -> None:
+        """Test anonymizing float values."""
+        assert anonymize_values(1.0) == 0.0
+        assert anonymize_values(0.0) == 0.0
+
+    def test_anonymize_str(self) -> None:
+        """Test anonymizing string values."""
+        assert anonymize_values("hello") == "string"
+        assert anonymize_values("") == "string"
+
+    def test_anonymize_datetime(self) -> None:
+        """Test anonymizing datetime values."""
+        test_datetime = datetime(1999, 1, 1, 0, 0, 0).astimezone()
+        assert anonymize_values(test_datetime) == "2000-01-01T00:00:00Z"
+
+    def test_anonymize_date(self) -> None:
+        """Test anonymizing date values."""
+        assert anonymize_values(date(1999, 1, 1)) == "2000-01-01"
+
+    def test_anonymize_timedelta(self) -> None:
+        """Test anonymizing timedelta values."""
+        assert anonymize_values(timedelta(1)) == "P1D"
+
+    TEST_LIST: ClassVar[list[MAIN_TYPE]] = [
+        True,
+        42,
+        3.14,
+        "test",
+        datetime(1999, 1, 1, 0, 0, 0).astimezone(),
+        date(1999, 1, 1),
+        timedelta(days=1),
+        {"key": "value"},
+    ]
+
+    TEST_DICT: ClassVar[dict[str, MAIN_TYPE]] = {
+        "bool": False,
+        "int": 42,
+        "float": 3.14,
+        "str": "test",
+        "datetime": datetime(1999, 1, 1, 0, 0, 0).astimezone(),
+        "date": date(1999, 1, 1),
+        "timedelta": timedelta(days=1),
+        "list": ["value 1"],
+    }
+
+    def test_anonymize_list(self) -> None:
+        """Test anonymizing list values with all supported types."""
+        test_input = self.TEST_LIST[:]
+
+        # Append a duplicate copy of the list (not recursive reference)
+        test_input.append(test_input[:])
+
+        original_input = test_input[:]
+
+        result = anonymize_values(test_input)
+        assert result == [
+            True,
+            0,
+            0.0,
+            "string",
+            "2000-01-01T00:00:00Z",
+            "2000-01-01",
+            "P1D",
+            {"key": "string"},
+            [
+                True,
+                0,
+                0.0,
+                "string",
+                "2000-01-01T00:00:00Z",
+                "2000-01-01",
+                "P1D",
+                {"key": "string"},
+            ],
+        ]
+
+        # Make sure the original list is not modified
+        assert test_input == original_input
+
+    def test_anonymize_dict(self) -> None:
+        """Test anonymizing dict values with all supported types."""
+        test_input = self.TEST_DICT.copy()
+
+        # Add a nested dict with a duplicate copy (not recursive reference)
+        test_input["nested"] = test_input.copy()
+
+        original_input = test_input.copy()
+
+        result = anonymize_values(test_input)
+        assert result == {
+            "bool": True,
+            "int": 0,
+            "float": 0.0,
+            "str": "string",
+            "datetime": "2000-01-01T00:00:00Z",
+            "date": "2000-01-01",
+            "timedelta": "P1D",
+            "list": ["string"],
+            "nested": {
+                "bool": True,
+                "int": 0,
+                "float": 0.0,
+                "str": "string",
+                "datetime": "2000-01-01T00:00:00Z",
+                "date": "2000-01-01",
+                "timedelta": "P1D",
+                "list": ["string"],
+            },
+        }
+        # Make sure the original dict is not modified
+        assert test_input == original_input

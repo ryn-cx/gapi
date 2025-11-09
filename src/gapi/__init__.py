@@ -26,6 +26,56 @@ class PydanticDatetime(BaseModel):
     datetime: datetime
 
 
+def anonymize_file(input_file: Path) -> None:
+    """Anonymize a JSON file by replacing all values with generic values.
+
+    Args:
+        input_file: The JSON file to anonymize.
+    """
+    input_data: INPUT_TYPE = json.loads(input_file.read_text())
+    _try_to_convert_everything(input_data)
+    anonymized_data = anonymize_values(input_data)
+    input_file.write_text(json.dumps(anonymized_data, indent=2))
+
+
+def anonymize_values(input_data: MAIN_TYPE) -> MAIN_TYPE:
+    """Recursively replace all values in the input data with generic values.
+
+    Args:
+        input_data: The data structure (dict or list) to anonymize.
+
+    Returns:
+        A new anonymized copy of the data structure (does not modify the original).
+    """
+    type_mapping: dict[type, MAIN_TYPE] = {
+        bool: True,
+        int: 0,
+        float: 0.0,
+        str: "string",
+        datetime: "2000-01-01T00:00:00Z",
+        date: "2000-01-01",
+        timedelta: "P1D",
+    }
+
+    if isinstance(input_data, dict):
+        result: dict[str, MAIN_TYPE] = {}
+        for key, value in input_data.items():
+            if isinstance(value, (list, dict)):
+                result[key] = anonymize_values(value)
+            else:
+                result[key] = type_mapping[type(value)]
+        return result
+    if isinstance(input_data, list):
+        result_list: list[MAIN_TYPE] = []
+        for value in input_data:
+            if isinstance(value, (list, dict)):
+                result_list.append(anonymize_values(value))
+            else:
+                result_list.append(type_mapping[type(value)])
+        return result_list
+    return type_mapping[type(input_data)]
+
+
 def _try_to_convert_values(input_data: INPUT_TYPE, key: str | int, value: str) -> None:
     """Try to convert a string values to its appropriate types."""
     # Datetime must be done before date because datetimes can be parsed as dates.
