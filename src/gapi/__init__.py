@@ -1,47 +1,39 @@
 import contextlib
 import json
 import logging
-import re
 import shutil
 import subprocess
 import tempfile
 from collections.abc import Mapping
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import datamodel_code_generator
 from degenson import SchemaBuilder
+from pydantic import BaseModel
 
 INPUT_TYPE = Mapping[str, "MAIN_TYPE"] | list["MAIN_TYPE"]
-MAIN_TYPE = INPUT_TYPE | datetime | date | str | int | float | bool
+MAIN_TYPE = INPUT_TYPE | datetime | date | timedelta | str | int | float | bool
 
 logger = logging.getLogger(__name__)
 
 
-def _try_to_convert_datetime(
-    input_data: INPUT_TYPE,
-    key: str | int,
-    value: str,
-) -> None:
-    """Try to convert a string to a datetime object."""
-    strptimes = ["%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z"]
-    for strptime in strptimes:
-        with contextlib.suppress(ValueError):
-            # DTZ007 - This doesn't need to be a timezone, and adding .astimezone() will
-            # break the context manager.
-            input_data[key] = datetime.strptime(value, strptime)  # noqa: DTZ007
+class PydanticDate(BaseModel):
+    date: date
 
 
-def _try_to_convert_date(input_data: INPUT_TYPE, key: str | int, value: str) -> None:
-    """Try to convert a string to a date object."""
-    if re.match(r"^\d{4}-\d{2}-\d{2}$", value):
-        input_data[key] = date.fromisoformat(value)
+class PydanticDatetime(BaseModel):
+    datetime: datetime
 
 
 def _try_to_convert_values(input_data: INPUT_TYPE, key: str | int, value: str) -> None:
     """Try to convert a string values to its appropriate types."""
-    _try_to_convert_datetime(input_data, key, value)
-    _try_to_convert_date(input_data, key, value)
+    # Datetime must be done before date because datetimes can be parsed as dates.
+    with contextlib.suppress(ValueError):
+        input_data[key] = PydanticDatetime(datetime=value).datetime
+
+    with contextlib.suppress(ValueError):
+        input_data[key] = PydanticDate(date=value).date
 
 
 def _try_to_convert_everything(input_data: INPUT_TYPE) -> None:
