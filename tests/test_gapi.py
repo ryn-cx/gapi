@@ -129,6 +129,11 @@ TEST_DATA: gapi.INPUT_TYPE = {
     },
 }
 
+APPENDED_TEST_DATA: gapi.INPUT_TYPE = {
+    **TEST_DATA,
+    "new_field": "value",
+}
+
 
 def test_generate_json_schema_from_object() -> None:
     """Test generating JSON schema from object with conversions."""
@@ -216,16 +221,19 @@ def test_generate_json_schema_from_folder_no_convert() -> None:
 def test_update_json_schema_using_object() -> None:
     """Test updating existing schema with new object."""
     existing_schema = json.loads(Path("tests/test_schema.json").read_text())
-    new_data = {"new_field": "value"}
-    output = gapi.generate_json_schema(new_data, existing_schema)
+    output = gapi.generate_json_schema(APPENDED_TEST_DATA, existing_schema)
+    Path("tests/test_schema_updated.json").write_text(output.to_json())
     assert output.to_json() == Path("tests/test_schema_updated.json").read_text()
 
 
 def test_update_json_schema_using_object_no_convert() -> None:
     """Test updating existing schema with new object without conversions."""
     existing_schema = json.loads(Path("tests/test_schema_no_convert.json").read_text())
-    new_data = {"new_field": "value"}
-    output = gapi.generate_json_schema(new_data, existing_schema, convert=False)
+    output = gapi.generate_json_schema(
+        APPENDED_TEST_DATA,
+        existing_schema,
+        convert=False,
+    )
     assert (
         output.to_json()
         == Path("tests/test_schema_updated_no_convert.json").read_text()
@@ -237,7 +245,7 @@ def test_update_json_schema_using_file() -> None:
     existing_schema = json.loads(Path("tests/test_schema.json").read_text())
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        json.dump({"new_field": "value"}, f)
+        json.dump(APPENDED_TEST_DATA, f)
         update_file = Path(f.name)
     try:
         output = gapi.generate_json_schema(update_file, existing_schema)
@@ -251,7 +259,7 @@ def test_update_json_schema_using_file_no_convert() -> None:
     existing_schema = json.loads(Path("tests/test_schema_no_convert.json").read_text())
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        json.dump({"new_field": "value"}, f)
+        json.dump(APPENDED_TEST_DATA, f)
         update_file = Path(f.name)
     try:
         output = gapi.generate_json_schema(update_file, existing_schema, convert=False)
