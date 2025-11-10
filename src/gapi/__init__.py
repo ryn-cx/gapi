@@ -1,7 +1,6 @@
 import contextlib
 import copy
 import json
-import logging
 import shutil
 import subprocess
 from datetime import date, datetime, timedelta
@@ -13,8 +12,6 @@ from pydantic import TypeAdapter
 
 INPUT_TYPE = dict[str, "MAIN_TYPE"] | list["MAIN_TYPE"]
 MAIN_TYPE = INPUT_TYPE | datetime | date | timedelta | str | int | float | bool
-
-logger = logging.getLogger(__name__)
 
 
 def convert_value(value: str) -> str | datetime | date | timedelta:
@@ -215,7 +212,6 @@ def update_json_schema_and_pydantic_model(
     if name:
         class_name = name.replace("_", " ").title().replace(" ", "")
 
-    logger.info("Updating schema for %s", name)
     if schema_path.exists():
         schema = generate_json_schema(data, schema_path)
     else:
