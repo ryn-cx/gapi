@@ -5,6 +5,35 @@ from pathlib import Path
 
 import gapi
 
+TEST_SCHEMA_PATH = Path("tests/test_schema.json")
+TEST_SCHEMA_NO_CONVERT_PATH = Path("tests/test_schema_no_convert.json")
+TEST_SCHEMA_UPDATED_PATH = Path("tests/test_schema_updated.json")
+TEST_SCHEMA_UPDATED_NO_CONVERT_PATH = Path("tests/test_schema_updated_no_convert.json")
+EXPECTED_SCHEMA_PATH = Path("tests/expected_schema.py")
+UPDATED_EXPECTED_SCHEMA_PATH = Path("tests/updated_expected_schema.py")
+
+
+TEST_DATA: gapi.INPUT_TYPE = {
+    "_datetime": "2000-01-01T00:00:00Z",
+    "_date": "2000-01-01",
+    "_timedelta": "P3D",
+    "_int": 1,
+    "_float": 1.0,
+    "_str": "string",
+    "_bool": True,
+    "_list": [
+        "2000-01-01T00:00:00Z",
+    ],
+    "_dict": {
+        "key": "2000-01-01T00:00:00Z",
+    },
+}
+
+APPENDED_TEST_DATA: gapi.INPUT_TYPE = {
+    **TEST_DATA,
+    "new_field": "value",
+}
+
 
 class TestConvert:
     def test_convert_datetime(self) -> None:
@@ -113,38 +142,16 @@ class TestConvertEverything:
         assert isinstance(list_input[1][0], gapi.timedelta)
 
 
-TEST_DATA: gapi.INPUT_TYPE = {
-    "_datetime": "2000-01-01T00:00:00Z",
-    "_date": "2000-01-01",
-    "_timedelta": "P3D",
-    "_int": 1,
-    "_float": 1.0,
-    "_str": "string",
-    "_bool": True,
-    "_list": [
-        "2000-01-01T00:00:00Z",
-    ],
-    "_dict": {
-        "key": "2000-01-01T00:00:00Z",
-    },
-}
-
-APPENDED_TEST_DATA: gapi.INPUT_TYPE = {
-    **TEST_DATA,
-    "new_field": "value",
-}
-
-
 def test_generate_json_schema_from_object() -> None:
     """Test generating JSON schema from object with conversions."""
     output = gapi.generate_json_schema(TEST_DATA)
-    assert output.to_json() == Path("tests/test_schema.json").read_text()
+    assert output.to_json() == TEST_SCHEMA_PATH.read_text()
 
 
 def test_generate_json_schema_from_object_no_convert() -> None:
     """Test generating JSON schema from object without conversions."""
     output = gapi.generate_json_schema(TEST_DATA, convert=False)
-    assert output.to_json() == Path("tests/test_schema_no_convert.json").read_text()
+    assert output.to_json() == TEST_SCHEMA_NO_CONVERT_PATH.read_text()
 
 
 def test_generate_json_schema_from_objects() -> None:
@@ -153,7 +160,7 @@ def test_generate_json_schema_from_objects() -> None:
         [TEST_DATA, TEST_DATA],
         multiple_inputs=True,
     )
-    assert output.to_json() == Path("tests/test_schema.json").read_text()
+    assert output.to_json() == TEST_SCHEMA_PATH.read_text()
 
 
 def test_generate_json_schema_from_objects_no_convert() -> None:
@@ -163,7 +170,7 @@ def test_generate_json_schema_from_objects_no_convert() -> None:
         multiple_inputs=True,
         convert=False,
     )
-    assert output.to_json() == Path("tests/test_schema_no_convert.json").read_text()
+    assert output.to_json() == TEST_SCHEMA_NO_CONVERT_PATH.read_text()
 
 
 def test_generate_json_schema_from_file() -> None:
@@ -173,7 +180,7 @@ def test_generate_json_schema_from_file() -> None:
         input_file = Path(f.name)
     try:
         output = gapi.generate_json_schema(input_file)
-        assert output.to_json() == Path("tests/test_schema.json").read_text()
+        assert output.to_json() == TEST_SCHEMA_PATH.read_text()
     finally:
         input_file.unlink()
 
@@ -185,7 +192,7 @@ def test_generate_json_schema_from_file_no_convert() -> None:
         input_file = Path(f.name)
     try:
         output = gapi.generate_json_schema(input_file, convert=False)
-        assert output.to_json() == Path("tests/test_schema_no_convert.json").read_text()
+        assert output.to_json() == TEST_SCHEMA_NO_CONVERT_PATH.read_text()
     finally:
         input_file.unlink()
 
@@ -201,7 +208,7 @@ def test_generate_json_schema_from_folder() -> None:
             file_path.write_text(json.dumps(TEST_DATA))
 
         output = gapi.generate_json_schema(tmpdir)
-        assert output.to_json() == Path("tests/test_schema.json").read_text()
+        assert output.to_json() == TEST_SCHEMA_PATH.read_text()
 
 
 def test_generate_json_schema_from_folder_no_convert() -> None:
@@ -215,58 +222,52 @@ def test_generate_json_schema_from_folder_no_convert() -> None:
             file_path.write_text(json.dumps(TEST_DATA))
 
         output = gapi.generate_json_schema(tmpdir, convert=False)
-        assert output.to_json() == Path("tests/test_schema_no_convert.json").read_text()
+        assert output.to_json() == TEST_SCHEMA_NO_CONVERT_PATH.read_text()
 
 
 def test_update_json_schema_using_object() -> None:
     """Test updating existing schema with new object."""
-    existing_schema = json.loads(Path("tests/test_schema.json").read_text())
+    existing_schema = json.loads(TEST_SCHEMA_PATH.read_text())
     output = gapi.generate_json_schema(APPENDED_TEST_DATA, existing_schema)
-    Path("tests/test_schema_updated.json").write_text(output.to_json())
-    assert output.to_json() == Path("tests/test_schema_updated.json").read_text()
+    TEST_SCHEMA_UPDATED_PATH.write_text(output.to_json())
+    assert output.to_json() == TEST_SCHEMA_UPDATED_PATH.read_text()
 
 
 def test_update_json_schema_using_object_no_convert() -> None:
     """Test updating existing schema with new object without conversions."""
-    existing_schema = json.loads(Path("tests/test_schema_no_convert.json").read_text())
+    existing_schema = json.loads(TEST_SCHEMA_NO_CONVERT_PATH.read_text())
     output = gapi.generate_json_schema(
         APPENDED_TEST_DATA,
         existing_schema,
         convert=False,
     )
-    assert (
-        output.to_json()
-        == Path("tests/test_schema_updated_no_convert.json").read_text()
-    )
+    assert output.to_json() == TEST_SCHEMA_UPDATED_NO_CONVERT_PATH.read_text()
 
 
 def test_update_json_schema_using_file() -> None:
     """Test updating existing schema with new data from file."""
-    existing_schema = json.loads(Path("tests/test_schema.json").read_text())
+    existing_schema = json.loads(TEST_SCHEMA_PATH.read_text())
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(APPENDED_TEST_DATA, f)
         update_file = Path(f.name)
     try:
         output = gapi.generate_json_schema(update_file, existing_schema)
-        assert output.to_json() == Path("tests/test_schema_updated.json").read_text()
+        assert output.to_json() == TEST_SCHEMA_UPDATED_PATH.read_text()
     finally:
         update_file.unlink()
 
 
 def test_update_json_schema_using_file_no_convert() -> None:
     """Test updating existing schema with new data from file without conversions."""
-    existing_schema = json.loads(Path("tests/test_schema_no_convert.json").read_text())
+    existing_schema = json.loads(TEST_SCHEMA_NO_CONVERT_PATH.read_text())
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(APPENDED_TEST_DATA, f)
         update_file = Path(f.name)
     try:
         output = gapi.generate_json_schema(update_file, existing_schema, convert=False)
-        assert (
-            output.to_json()
-            == Path("tests/test_schema_updated_no_convert.json").read_text()
-        )
+        assert output.to_json() == TEST_SCHEMA_UPDATED_NO_CONVERT_PATH.read_text()
     finally:
         update_file.unlink()
 
@@ -277,10 +278,10 @@ def test_generate_pydantic_from_file() -> None:
         output_file = Path(f.name)
     try:
         gapi.generate_pydantic_model(
-            Path("tests/test_schema.json"),
+            TEST_SCHEMA_PATH,
             output_file,
         )
-        assert output_file.read_text() == Path("tests/expected_schema.py").read_text()
+        assert output_file.read_text() == EXPECTED_SCHEMA_PATH.read_text()
     finally:
         output_file.unlink()
 
@@ -291,10 +292,10 @@ def test_generate_pydantic_from_schema() -> None:
         output_file = Path(f.name)
     try:
         gapi.generate_pydantic_model(
-            json.loads(Path("tests/test_schema.json").read_text()),
+            json.loads(TEST_SCHEMA_PATH.read_text()),
             output_file,
         )
-        assert output_file.read_text() == Path("tests/expected_schema.py").read_text()
+        assert output_file.read_text() == EXPECTED_SCHEMA_PATH.read_text()
     finally:
         output_file.unlink()
 
@@ -309,6 +310,44 @@ def test_generate_pydantic_from_builder() -> None:
             builder,
             output_file,
         )
-        assert output_file.read_text() == Path("tests/expected_schema.py").read_text()
+        assert output_file.read_text() == EXPECTED_SCHEMA_PATH.read_text()
     finally:
         output_file.unlink()
+
+
+def test_update_json_schema_and_pydantic_model_new() -> None:
+    """Test creating new schema and model files."""
+    with tempfile.NamedTemporaryFile(suffix=".json") as schema_f:
+        schema_path = Path(schema_f.name)
+
+    with tempfile.NamedTemporaryFile(suffix=".py") as model_f:
+        model_path = Path(model_f.name)
+    try:
+        gapi.update_json_schema_and_pydantic_model(TEST_DATA, schema_path, model_path)
+
+        assert schema_path.read_text() == TEST_SCHEMA_PATH.read_text()
+        assert model_path.read_text() == EXPECTED_SCHEMA_PATH.read_text()
+    finally:
+        schema_path.unlink()
+        model_path.unlink()
+
+
+def test_update_json_schema_and_pydantic_model_update() -> None:
+    """Test updating existing schema with new data."""
+    with tempfile.NamedTemporaryFile(suffix=".json") as schema_f:
+        schema_path = Path(schema_f.name)
+    with tempfile.NamedTemporaryFile(suffix=".py") as model_f:
+        model_path = Path(model_f.name)
+
+    schema_path.write_text(TEST_SCHEMA_PATH.read_text())
+    try:
+        gapi.update_json_schema_and_pydantic_model(
+            APPENDED_TEST_DATA,
+            schema_path,
+            model_path,
+        )
+        assert schema_path.read_text() == TEST_SCHEMA_UPDATED_PATH.read_text()
+        assert model_path.read_text() == UPDATED_EXPECTED_SCHEMA_PATH.read_text()
+    finally:
+        schema_path.unlink()
+        model_path.unlink()

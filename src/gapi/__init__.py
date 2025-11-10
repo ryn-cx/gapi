@@ -191,3 +191,34 @@ def generate_pydantic_model(
             stdout=subprocess.DEVNULL,
             stderr=subprocess.STDOUT,
         )
+
+
+def update_json_schema_and_pydantic_model(
+    data: INPUT_TYPE,
+    schema_path: Path,
+    model_path: Path,
+    name: str | None = None,
+) -> None:
+    """Update JSON schema and Pydantic model for given data.
+
+    Args:
+        name: The name of the schema/model. Will be converted to PascalCase for
+            the class name (e.g., "user_profile" becomes "UserProfile").
+        data: The input data to generate the schema from. Can be a dict or list.
+        schema_path: The path where the JSON schema file will be written. If this
+            file exists, it will be used as the base schema and merged with the
+            new data.
+        model_path: The path where the generated Pydantic model file will be
+            written.
+    """
+    class_name = None
+    if name:
+        class_name = name.replace("_", " ").title().replace(" ", "")
+
+    logger.info("Updating schema for %s", name)
+    if schema_path.exists():
+        schema = generate_json_schema(data, schema_path)
+    else:
+        schema = generate_json_schema(data)
+    schema_path.write_text(schema.to_json())
+    generate_pydantic_model(schema, model_path, class_name)
