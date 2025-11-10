@@ -2,307 +2,305 @@ import json
 import tempfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import ClassVar
 
-from gapi import MAIN_TYPE, anonymize_values, generate_from_files, generate_from_object
-
-
-class TestGenerateFromObject:
-    def test_datetime_conversion(self) -> None:
-        expected_output_file = Path("tests/datetime_conversion.output")
-        expected_output = expected_output_file.read_text()
-        """Test automatic datetime conversion from strings."""
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            output_file = Path(f.name)
-        try:
-            data: dict[str, str] = {"test_datetime": "2024-01-15T10:30:00Z"}
-            generate_from_object(data, output_file, "TestDateTime")
-            assert output_file.read_text() == expected_output
-        finally:
-            output_file.unlink()
-
-    def test_date_conversion(self) -> None:
-        """Test automatic date conversion from strings."""
-        expected_output_file = Path("tests/date_conversion.output")
-        expected_output = expected_output_file.read_text()
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            output_file = Path(f.name)
-        try:
-            data: dict[str, str] = {"test_date": "2024-01-15"}
-            generate_from_object(data, output_file, "TestDate")
-            assert output_file.read_text() == expected_output
-        finally:
-            output_file.unlink()
-
-    def test_timedelta_conversion(self) -> None:
-        """Test automatic timedelta conversion."""
-        expected_output_file = Path("tests/timedelta_conversion.output")
-        expected_output = expected_output_file.read_text()
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            output_file = Path(f.name)
-        try:
-            data: dict[str, str] = {"test_duration": "P3D"}
-            generate_from_object(data, output_file, "TestTimedelta")
-            assert output_file.read_text() == expected_output
-        finally:
-            output_file.unlink()
-
-    def test_skip_conversions(self) -> None:
-        """Test skipping automatic type conversions."""
-        expected_output_file = Path("tests/skip_conversions.output")
-        expected_output = expected_output_file.read_text()
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
-            output_file = Path(f.name)
-        try:
-            data: dict[str, str] = {
-                "test_datetime": "2024-01-15T10:30:00Z",
-                "test_date": "2024-01-15",
-            }
-            generate_from_object(data, output_file, "TestSkip", skip_conversions=True)
-            assert output_file.read_text() == expected_output
-        finally:
-            output_file.unlink()
+import gapi
 
 
-class TestGenerateFromFiles:
-    def test_single_file(self) -> None:
-        """Test generating a model from a single JSON file."""
-        expected_output_file = Path("tests/single_file.output")
-        expected_output = expected_output_file.read_text()
-        with tempfile.TemporaryDirectory() as tmpdir_str:
-            tmpdir = Path(tmpdir_str)
-            json_file = tmpdir / "test.json"
-            json_file.write_text(json.dumps({"test_string": "String"}))
+class TestConvert:
+    def test_convert_datetime(self) -> None:
+        """Test converting datetime strings in dict."""
+        assert isinstance(gapi.convert_value("2024-01-15T10:30:00Z"), datetime)
 
-            output_file = tmpdir / "output.py"
-            generate_from_files([json_file], output_file, "TestSingleFile")
+    def test_convert_date_string(self) -> None:
+        """Test converting date strings in dict."""
+        assert isinstance(gapi.convert_value("2024-01-15"), date)
 
-            assert output_file.read_text() == expected_output
+    def test_convert_timedelta(self) -> None:
+        """Test converting timedelta strings in dict."""
+        assert isinstance(gapi.convert_value("P3D"), timedelta)
 
-    def test_multiple_files(self) -> None:
-        """Test generating a model from multiple JSON files."""
-        expected_output_file = Path("tests/multiple_file.output")
-        expected_output = expected_output_file.read_text()
-        with tempfile.TemporaryDirectory() as tmpdir_str:
-            tmpdir = Path(tmpdir_str)
-
-            file1 = tmpdir / "test1.json"
-            file1.write_text(json.dumps({"test_mixed": "String"}))
-
-            file2 = tmpdir / "test2.json"
-            file2.write_text(json.dumps({"test_mixed": 123}))
-
-            output_file = tmpdir / "output.py"
-            generate_from_files([file1, file2], output_file, "Combined")
-
-            assert output_file.read_text() == expected_output
-
-    def test_single_redundant_file(self) -> None:
-        """Test generating a model from multiple JSON files."""
-        expected_output_file = Path("tests/single_redundant_file.output")
-        expected_output = expected_output_file.read_text()
-        with tempfile.TemporaryDirectory() as tmpdir_str:
-            tmpdir = Path(tmpdir_str)
-
-            file1 = tmpdir / "test1.json"
-            file1.write_text(json.dumps({"test_string": "String"}))
-
-            file2 = tmpdir / "test2.json"
-            file2.write_text(json.dumps({"test_string": "String", "test_int": 123}))
-
-            file3 = tmpdir / "test3.json"
-            file3.write_text(json.dumps({"test_int": 123}))
-
-            output_file = tmpdir / "output.py"
-            generate_from_files(
-                [file1, file2, file3],
-                output_file,
-                "Combined",
-                remove_redundant_files=True,
-            )
-
-            assert output_file.read_text() == expected_output
-            number_of_remaining_files = len(list(tmpdir.glob("*.json")))
-            assert number_of_remaining_files == 2  # noqa: PLR2004
-
-    def test_multiple_redundant_files(self) -> None:
-        """Test generating a model from multiple JSON files."""
-        expected_output_file = Path("tests/multiple_redundant_files.output")
-        expected_output = expected_output_file.read_text()
-        with tempfile.TemporaryDirectory() as tmpdir_str:
-            tmpdir = Path(tmpdir_str)
-
-            file1 = tmpdir / "test1.json"
-            file1.write_text(json.dumps({"test_string": "String"}))
-
-            file2 = tmpdir / "test2.json"
-            file2.write_text(json.dumps({"test_string": "String"}))
-
-            file3 = tmpdir / "test3.json"
-            file3.write_text(json.dumps({"test_string": "String"}))
-
-            output_file = tmpdir / "output.py"
-            generate_from_files(
-                [file1, file2, file3],
-                output_file,
-                "Combined",
-                remove_redundant_files=True,
-            )
-
-            assert output_file.read_text() == expected_output
-            number_of_remaining_files = len(list(tmpdir.glob("*.json")))
-            assert number_of_remaining_files == 1
-
-    def test_multiple_non_redundant_files(self) -> None:
-        """Test generating a model from multiple JSON files."""
-        expected_output_file = Path("tests/multiple_non_redundant_files.output")
-        expected_output = expected_output_file.read_text()
-        with tempfile.TemporaryDirectory() as tmpdir_str:
-            tmpdir = Path(tmpdir_str)
-
-            file1 = tmpdir / "test1.json"
-            file1.write_text(json.dumps({"test_mixed": "String"}))
-
-            file2 = tmpdir / "test2.json"
-            file2.write_text(json.dumps({"test_mixed": 123}))
-
-            file3 = tmpdir / "test3.json"
-            file3.write_text(json.dumps({"test_mixed": "2024-01-15T10:30:00Z"}))
-
-            output_file = tmpdir / "output.py"
-            generate_from_files(
-                [file1, file2, file3],
-                output_file,
-                "Combined",
-                remove_redundant_files=True,
-            )
-
-            assert output_file.read_text() == expected_output
-            number_of_remaining_files = len(list(tmpdir.glob("*.json")))
-            assert number_of_remaining_files == 3  # noqa: PLR2004
+    def test_convert_no_op(self) -> None:
+        """Test converting timedelta strings in dict."""
+        assert isinstance(gapi.convert_value("string"), str)
 
 
-class TestAnonymizeValue:
-    """Test anonymize_values function with all supported types."""
+class TestConvertEverything:
+    def test_convert_datetime_string_in_dict(self) -> None:
+        """Test converting datetime strings in dict."""
+        dict_input = {"key_1": "2000-01-01T00:00:00Z"}
+        gapi.convert_everything(dict_input)
+        assert isinstance(dict_input["key_1"], datetime)
 
-    def test_anonymize_bool(self) -> None:
-        """Test anonymizing boolean values."""
-        assert anonymize_values(input_data=True) is True
-        assert anonymize_values(input_data=False) is True
+    def test_convert_datetime_string_in_list(self) -> None:
+        """Test converting datetime strings in list."""
+        list_input = ["2000-01-01T00:00:00Z"]
+        gapi.convert_everything(list_input)
+        assert isinstance(list_input[0], datetime)
 
-    def test_anonymize_int(self) -> None:
-        """Test anonymizing integer values."""
-        assert anonymize_values(1) == 0
-        assert anonymize_values(0) == 0
-
-    def test_anonymize_float(self) -> None:
-        """Test anonymizing float values."""
-        assert anonymize_values(1.0) == 0.0
-        assert anonymize_values(0.0) == 0.0
-
-    def test_anonymize_str(self) -> None:
-        """Test anonymizing string values."""
-        assert anonymize_values("hello") == "string"
-        assert anonymize_values("") == "string"
-
-    def test_anonymize_datetime(self) -> None:
-        """Test anonymizing datetime values."""
-        test_datetime = datetime(1999, 1, 1, 0, 0, 0).astimezone()
-        assert anonymize_values(test_datetime) == "2000-01-01T00:00:00Z"
-
-    def test_anonymize_date(self) -> None:
-        """Test anonymizing date values."""
-        assert anonymize_values(date(1999, 1, 1)) == "2000-01-01"
-
-    def test_anonymize_timedelta(self) -> None:
-        """Test anonymizing timedelta values."""
-        assert anonymize_values(timedelta(1)) == "P1D"
-
-    TEST_LIST: ClassVar[list[MAIN_TYPE]] = [
-        True,
-        42,
-        3.14,
-        "test",
-        datetime(1999, 1, 1, 0, 0, 0).astimezone(),
-        date(1999, 1, 1),
-        timedelta(days=1),
-        {"key": "value"},
-    ]
-
-    TEST_DICT: ClassVar[dict[str, MAIN_TYPE]] = {
-        "bool": False,
-        "int": 42,
-        "float": 3.14,
-        "str": "test",
-        "datetime": datetime(1999, 1, 1, 0, 0, 0).astimezone(),
-        "date": date(1999, 1, 1),
-        "timedelta": timedelta(days=1),
-        "list": ["value 1"],
-    }
-
-    def test_anonymize_list(self) -> None:
-        """Test anonymizing list values with all supported types."""
-        test_input = self.TEST_LIST[:]
-
-        # Append a duplicate copy of the list (not recursive reference)
-        test_input.append(test_input[:])
-
-        original_input = test_input[:]
-
-        result = anonymize_values(test_input)
-        assert result == [
-            True,
-            0,
-            0.0,
-            "string",
-            "2000-01-01T00:00:00Z",
-            "2000-01-01",
-            "P1D",
-            {"key": "string"},
-            [
-                True,
-                0,
-                0.0,
-                "string",
-                "2000-01-01T00:00:00Z",
-                "2000-01-01",
-                "P1D",
-                {"key": "string"},
-            ],
-        ]
-
-        # Make sure the original list is not modified
-        assert test_input == original_input
-
-    def test_anonymize_dict(self) -> None:
-        """Test anonymizing dict values with all supported types."""
-        test_input = self.TEST_DICT.copy()
-
-        # Add a nested dict with a duplicate copy (not recursive reference)
-        test_input["nested"] = test_input.copy()
-
-        original_input = test_input.copy()
-
-        result = anonymize_values(test_input)
-        assert result == {
-            "bool": True,
-            "int": 0,
-            "float": 0.0,
-            "str": "string",
-            "datetime": "2000-01-01T00:00:00Z",
-            "date": "2000-01-01",
-            "timedelta": "P1D",
-            "list": ["string"],
-            "nested": {
-                "bool": True,
-                "int": 0,
-                "float": 0.0,
-                "str": "string",
-                "datetime": "2000-01-01T00:00:00Z",
-                "date": "2000-01-01",
-                "timedelta": "P1D",
-                "list": ["string"],
-            },
+    def test_convert_datetime_nested_dict(self) -> None:
+        """Test converting datetime strings in nested dict."""
+        dict_input = {
+            "key_1": "2000-01-01T00:00:00Z",
+            "key_2": {"key_3": "2000-01-01T00:00:00Z"},
         }
-        # Make sure the original dict is not modified
-        assert test_input == original_input
+        gapi.convert_everything(dict_input)
+        assert isinstance(dict_input["key_1"], datetime)
+        assert isinstance(dict_input["key_2"]["key_3"], datetime)
+
+    def test_convert_datetime_nested_list(self) -> None:
+        """Test converting datetime strings in nested list."""
+        list_input = ["2000-01-01T00:00:00Z", ["2000-01-01T00:00:00Z"]]
+        gapi.convert_everything(list_input)
+        assert isinstance(list_input[0], datetime)
+        assert isinstance(list_input[1][0], datetime)
+
+    def test_convert_date_string_in_dict(self) -> None:
+        """Test converting date strings in dict."""
+        dict_input = {"key_1": "2000-01-01"}
+        gapi.convert_everything(dict_input)
+        assert isinstance(dict_input["key_1"], date)
+
+    def test_convert_date_string_in_list(self) -> None:
+        """Test converting date strings in list."""
+        list_input = ["2000-01-01"]
+        gapi.convert_everything(list_input)
+        assert isinstance(list_input[0], date)
+
+    def test_convert_date_nested_dict(self) -> None:
+        """Test converting date strings in nested dict."""
+        dict_input = {
+            "key_1": "2000-01-01",
+            "key_2": {"key_3": "2000-01-01"},
+        }
+        gapi.convert_everything(dict_input)
+        assert isinstance(dict_input["key_1"], date)
+        assert isinstance(dict_input["key_2"]["key_3"], date)
+
+    def test_convert_date_nested_list(self) -> None:
+        """Test converting date strings in nested list."""
+        list_input = ["2000-01-01", ["2000-01-01"]]
+        gapi.convert_everything(list_input)
+        assert isinstance(list_input[0], date)
+        assert isinstance(list_input[1][0], date)
+
+    def test_convert_timedelta_string_in_dict(self) -> None:
+        """Test converting timedelta strings in dict."""
+        dict_input = {"key_1": "P1D"}
+        gapi.convert_everything(dict_input)
+        assert isinstance(dict_input["key_1"], timedelta)
+
+    def test_convert_timedelta_string_in_list(self) -> None:
+        """Test converting timedelta strings in list."""
+        list_input = ["P1D"]
+        gapi.convert_everything(list_input)
+        assert isinstance(list_input[0], timedelta)
+
+    def test_convert_timedelta_nested_dict(self) -> None:
+        """Test converting timedelta strings in nested dict."""
+        dict_input = {
+            "key_1": "P1D",
+            "key_2": {"key_3": "P1D"},
+        }
+        gapi.convert_everything(dict_input)
+        assert isinstance(dict_input["key_1"], gapi.timedelta)
+        assert isinstance(dict_input["key_2"]["key_3"], gapi.timedelta)
+
+    def test_convert_timedelta_nested_list(self) -> None:
+        """Test converting timedelta strings in nested list."""
+        list_input = ["P1D", ["P1D"]]
+        gapi.convert_everything(list_input)
+        assert isinstance(list_input[0], gapi.timedelta)
+        assert isinstance(list_input[1][0], gapi.timedelta)
+
+
+TEST_DATA: gapi.INPUT_TYPE = {
+    "_datetime": "2000-01-01T00:00:00Z",
+    "_date": "2000-01-01",
+    "_timedelta": "P3D",
+    "_int": 1,
+    "_float": 1.0,
+    "_str": "string",
+    "_bool": True,
+    "_list": [
+        "2000-01-01T00:00:00Z",
+    ],
+    "_dict": {
+        "key": "2000-01-01T00:00:00Z",
+    },
+}
+
+
+def test_generate_json_schema_from_object() -> None:
+    """Test generating JSON schema from object with conversions."""
+    output = gapi.generate_json_schema(TEST_DATA)
+    assert output.to_json() == Path("tests/test_schema.json").read_text()
+
+
+def test_generate_json_schema_from_object_no_convert() -> None:
+    """Test generating JSON schema from object without conversions."""
+    output = gapi.generate_json_schema(TEST_DATA, convert=False)
+    assert output.to_json() == Path("tests/test_schema_no_convert.json").read_text()
+
+
+def test_generate_json_schema_from_objects() -> None:
+    """Test generating JSON schema from multiple objects."""
+    output = gapi.generate_json_schema(
+        [TEST_DATA, TEST_DATA],
+        multiple_inputs=True,
+    )
+    assert output.to_json() == Path("tests/test_schema.json").read_text()
+
+
+def test_generate_json_schema_from_objects_no_convert() -> None:
+    """Test generating JSON schema from multiple objects without conversions."""
+    output = gapi.generate_json_schema(
+        [TEST_DATA, TEST_DATA],
+        multiple_inputs=True,
+        convert=False,
+    )
+    assert output.to_json() == Path("tests/test_schema_no_convert.json").read_text()
+
+
+def test_generate_json_schema_from_file() -> None:
+    """Test generating JSON schema from a JSON file."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(TEST_DATA, f)
+        input_file = Path(f.name)
+    try:
+        output = gapi.generate_json_schema(input_file)
+        assert output.to_json() == Path("tests/test_schema.json").read_text()
+    finally:
+        input_file.unlink()
+
+
+def test_generate_json_schema_from_file_no_convert() -> None:
+    """Test generating JSON schema from a JSON file without conversions."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(TEST_DATA, f)
+        input_file = Path(f.name)
+    try:
+        output = gapi.generate_json_schema(input_file, convert=False)
+        assert output.to_json() == Path("tests/test_schema_no_convert.json").read_text()
+    finally:
+        input_file.unlink()
+
+
+def test_generate_json_schema_from_folder() -> None:
+    """Test generating JSON schema from a folder of JSON files."""
+    with tempfile.TemporaryDirectory() as tmpdir_str:
+        tmpdir = Path(tmpdir_str)
+
+        # Create multiple JSON files
+        for i in range(3):
+            file_path = tmpdir / f"{i}.json"
+            file_path.write_text(json.dumps(TEST_DATA))
+
+        output = gapi.generate_json_schema(tmpdir)
+        assert output.to_json() == Path("tests/test_schema.json").read_text()
+
+
+def test_generate_json_schema_from_folder_no_convert() -> None:
+    """Test generating JSON schema from a folder of JSON files without conversions."""
+    with tempfile.TemporaryDirectory() as tmpdir_str:
+        tmpdir = Path(tmpdir_str)
+
+        # Create multiple JSON files
+        for i in range(3):
+            file_path = tmpdir / f"{i}.json"
+            file_path.write_text(json.dumps(TEST_DATA))
+
+        output = gapi.generate_json_schema(tmpdir, convert=False)
+        assert output.to_json() == Path("tests/test_schema_no_convert.json").read_text()
+
+
+def test_update_json_schema_using_object() -> None:
+    """Test updating existing schema with new object."""
+    existing_schema = json.loads(Path("tests/test_schema.json").read_text())
+    new_data = {"new_field": "value"}
+    output = gapi.generate_json_schema(new_data, existing_schema)
+    assert output.to_json() == Path("tests/test_schema_updated.json").read_text()
+
+
+def test_update_json_schema_using_object_no_convert() -> None:
+    """Test updating existing schema with new object without conversions."""
+    existing_schema = json.loads(Path("tests/test_schema_no_convert.json").read_text())
+    new_data = {"new_field": "value"}
+    output = gapi.generate_json_schema(new_data, existing_schema, convert=False)
+    assert (
+        output.to_json()
+        == Path("tests/test_schema_updated_no_convert.json").read_text()
+    )
+
+
+def test_update_json_schema_using_file() -> None:
+    """Test updating existing schema with new data from file."""
+    existing_schema = json.loads(Path("tests/test_schema.json").read_text())
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump({"new_field": "value"}, f)
+        update_file = Path(f.name)
+    try:
+        output = gapi.generate_json_schema(update_file, existing_schema)
+        assert output.to_json() == Path("tests/test_schema_updated.json").read_text()
+    finally:
+        update_file.unlink()
+
+
+def test_update_json_schema_using_file_no_convert() -> None:
+    """Test updating existing schema with new data from file without conversions."""
+    existing_schema = json.loads(Path("tests/test_schema_no_convert.json").read_text())
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump({"new_field": "value"}, f)
+        update_file = Path(f.name)
+    try:
+        output = gapi.generate_json_schema(update_file, existing_schema, convert=False)
+        assert (
+            output.to_json()
+            == Path("tests/test_schema_updated_no_convert.json").read_text()
+        )
+    finally:
+        update_file.unlink()
+
+
+def test_generate_pydantic_from_file() -> None:
+    """Test generating Pydantic model from JSON schema file."""
+    with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+        output_file = Path(f.name)
+    try:
+        gapi.generate_pydantic_model(
+            Path("tests/test_schema.json"),
+            output_file,
+        )
+        assert output_file.read_text() == Path("tests/expected_schema.py").read_text()
+    finally:
+        output_file.unlink()
+
+
+def test_generate_pydantic_from_schema() -> None:
+    """Test generating Pydantic model from JSON schema dict."""
+    with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+        output_file = Path(f.name)
+    try:
+        gapi.generate_pydantic_model(
+            json.loads(Path("tests/test_schema.json").read_text()),
+            output_file,
+        )
+        assert output_file.read_text() == Path("tests/expected_schema.py").read_text()
+    finally:
+        output_file.unlink()
+
+
+def test_generate_pydantic_from_builder() -> None:
+    """Test generating Pydantic model from SchemaBuilder."""
+    builder = gapi.generate_json_schema(TEST_DATA)
+    with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+        output_file = Path(f.name)
+    try:
+        gapi.generate_pydantic_model(
+            builder,
+            output_file,
+        )
+        assert output_file.read_text() == Path("tests/expected_schema.py").read_text()
+    finally:
+        output_file.unlink()

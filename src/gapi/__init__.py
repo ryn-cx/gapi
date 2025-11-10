@@ -1,246 +1,169 @@
 import contextlib
+import copy
 import json
 import logging
 import shutil
 import subprocess
-import tempfile
-from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import datamodel_code_generator
 from degenson import SchemaBuilder
-from pydantic import BaseModel
+from pydantic import TypeAdapter
 
-INPUT_TYPE = Mapping[str, "MAIN_TYPE"] | list["MAIN_TYPE"]
+INPUT_TYPE = dict[str, "MAIN_TYPE"] | list["MAIN_TYPE"]
 MAIN_TYPE = INPUT_TYPE | datetime | date | timedelta | str | int | float | bool
 
 logger = logging.getLogger(__name__)
 
 
-class PydanticTimeDelta(BaseModel):
-    timedelta: timedelta
+def convert_value(value: str) -> str | datetime | date | timedelta:
+    """Convert a value to a more specific type if possible.
 
-
-class PydanticDate(BaseModel):
-    date: date
-
-
-class PydanticDatetime(BaseModel):
-    datetime: datetime
-
-
-def anonymize_file(input_file: Path) -> None:
-    """Anonymize a JSON file by replacing all values with generic values.
-
-    Args:
-        input_file: The JSON file to anonymize.
+    Returns the converted value if successful, otherwise returns the original string.
     """
-    input_data: INPUT_TYPE = json.loads(input_file.read_text())
-    _try_to_convert_everything(input_data)
-    anonymized_data = anonymize_values(input_data)
-    input_file.write_text(json.dumps(anonymized_data, indent=2))
+    # datetime must be checked before date because it is a child class of date.
+    with contextlib.suppress(ValueError):
+        return TypeAdapter(datetime).validate_python(value)
+
+    with contextlib.suppress(ValueError):
+        return TypeAdapter(date).validate_python(value)
+
+    with contextlib.suppress(ValueError):
+        return TypeAdapter(timedelta).validate_python(value)
+
+    return value
 
 
-def anonymize_values(input_data: MAIN_TYPE) -> MAIN_TYPE:
-    """Recursively replace all values in the input data with generic values.
-
-    Args:
-        input_data: The data structure (dict or list) to anonymize.
-
-    Returns:
-        A new anonymized copy of the data structure (does not modify the original).
-    """
-    type_mapping: dict[type, MAIN_TYPE] = {
-        bool: True,
-        int: 0,
-        float: 0.0,
-        str: "string",
-        datetime: "2000-01-01T00:00:00Z",
-        date: "2000-01-01",
-        timedelta: "P1D",
-    }
-
+def convert_everything(input_data: INPUT_TYPE) -> None:
+    """Recursively convert all values to more specific types if possible."""
+    # This code is intentional duplicated for type checking purposes.
     if isinstance(input_data, dict):
-        result: dict[str, MAIN_TYPE] = {}
         for key, value in input_data.items():
-            if isinstance(value, (list, dict)):
-                result[key] = anonymize_values(value)
-            else:
-                result[key] = type_mapping[type(value)]
-        return result
-    if isinstance(input_data, list):
-        result_list: list[MAIN_TYPE] = []
-        for value in input_data:
-            if isinstance(value, (list, dict)):
-                result_list.append(anonymize_values(value))
-            else:
-                result_list.append(type_mapping[type(value)])
-        return result_list
-    return type_mapping[type(input_data)]
-
-
-def _try_to_convert_values(input_data: INPUT_TYPE, key: str | int, value: str) -> None:
-    """Try to convert a string values to its appropriate types."""
-    # Datetime must be done before date because datetimes can be parsed as dates.
-    with contextlib.suppress(ValueError):
-        input_data[key] = PydanticDatetime(datetime=value).datetime
-
-    with contextlib.suppress(ValueError):
-        input_data[key] = PydanticDate(date=value).date
-
-    with contextlib.suppress(ValueError):
-        input_data[key] = PydanticTimeDelta(timedelta=value).timedelta
-
-
-def _try_to_convert_everything(input_data: INPUT_TYPE) -> None:
-    """Recursively try to convert all values."""
-    if isinstance(input_data, dict):
-        items = input_data.items()
+            if isinstance(value, str):
+                input_data[key] = convert_value(value)
+            elif isinstance(value, (dict, list)):
+                convert_everything(value)
     else:
-        items = enumerate(input_data)
-
-    for key, value in items:
-        if isinstance(value, str):
-            _try_to_convert_values(input_data, key, value)
-        elif isinstance(value, (dict, list)):
-            _try_to_convert_everything(value)
+        for key, value in enumerate(input_data):
+            if isinstance(value, str):
+                input_data[key] = convert_value(value)
+            elif isinstance(value, (dict, list)):
+                convert_everything(value)
 
 
-def _remove_redundant_files(input_files: list[Path]) -> None:
-    with tempfile.NamedTemporaryFile(delete=False) as fp:
-        temp_file = Path(fp.name)
-    try:
-        generate_from_files(input_files, temp_file)
-        complete_model_text = temp_file.read_text()
-
-        # Loop through all of the files while ignoring a specific file each time to make
-        # sure each file is necessary to generate the schema.
-        for i, _ in enumerate(input_files):
-            test_files = input_files[:i] + input_files[i + 1 :]
-            with tempfile.NamedTemporaryFile(delete=False) as fp:
-                temp_file2 = Path(fp.name)
-            try:
-                generate_from_files(test_files, temp_file2)
-                test_model_text = temp_file2.read_text()
-
-                if test_model_text == complete_model_text:
-                    logger.info("File %s is redundant", input_files[i].name)
-                    input_files[i].unlink()
-                    input_files.pop(i)
-                    _remove_redundant_files(input_files)
-                    return
-            finally:
-                temp_file2.unlink(missing_ok=True)
-    finally:
-        temp_file.unlink(missing_ok=True)
-
-
-def generate_from_folder(
-    input_folder: Path,
-    output_file: Path,
-    class_name: str | None = None,
-    *,
-    skip_conversions: bool = False,
-    remove_redundant_files: bool = False,
+def _load_original_schema(
+    original_schema: str | Path | dict[str, INPUT_TYPE] | None,
+    builder: SchemaBuilder,
 ) -> None:
-    """Generate Pydantic models from all JSON files in the input folder.
+    if original_schema:
+        if isinstance(original_schema, Path):
+            if not original_schema.is_file():
+                msg = "original_schema must be a file."
+                raise ValueError(msg)
+
+            original_schema = original_schema.read_text()
+
+        if isinstance(original_schema, str):
+            original_schema = json.loads(original_schema)
+
+        builder.add_schema(original_schema)
+
+
+def _parse_schema_input(
+    schema_input: Path | INPUT_TYPE,
+    *,
+    multiple_inputs: bool | None,
+) -> tuple[INPUT_TYPE, bool | None]:
+    if isinstance(schema_input, Path):
+        if schema_input.is_file():
+            if multiple_inputs is None:
+                multiple_inputs = False
+
+            parsed_data = json.loads(schema_input.read_text())
+            return parsed_data, multiple_inputs
+
+        if schema_input.is_dir():
+            if multiple_inputs is None:
+                multiple_inputs = True
+
+            parsed_data = [
+                json.loads(json_file.read_text())
+                for json_file in schema_input.glob("*.json")
+            ]
+            return parsed_data, multiple_inputs
+
+        msg = f"Input path {schema_input} is neither a file nor a directory."
+        raise OSError(msg)
+
+    return schema_input, multiple_inputs
+
+
+def generate_json_schema(
+    schema_input: Path | INPUT_TYPE,
+    original_schema: str | Path | dict[str, INPUT_TYPE] | None = None,
+    *,
+    multiple_inputs: bool | None = None,
+    convert: bool = True,
+) -> SchemaBuilder:
+    """Generate a JSON schema from a single input, which can be a file or an object.
 
     Args:
-        input_folder: The folder containing JSON files.
-        output_file: The file to write the generated models to.
-        class_name: The name of the main class to generate. If None, use the default
-        value from datamodel-code-generator.
-        skip_conversions: Whether to skip trying to convert string values to their
-        appropriate types. Defaults to False.
-        remove_redundant_files: If a file has no effect on the generated schema remove
-        it.
-
+        schema_input: Can be a Path to a JSON file/directory or a dict/list containing
+            input data.
+        original_schema: An optional original schema to use as a base.
+        multiple_inputs: Whether the input_data contains multiple inputs. If None,
+            this will be inferred from the type of input_data.
+        convert: Whether to attempt to convert string values to more specific types.
     """
-    generate_from_files(
-        list(input_folder.glob("*.json")),
-        output_file,
-        class_name,
-        skip_conversions=skip_conversions,
-        remove_redundant_files=remove_redundant_files,
+    builder = SchemaBuilder()
+
+    _load_original_schema(original_schema, builder)
+
+    schema_input, multiple_inputs = _parse_schema_input(
+        schema_input,
+        multiple_inputs=multiple_inputs,
     )
 
+    schema_input = copy.deepcopy(schema_input)
+    if multiple_inputs:
+        for schema_entry in schema_input:
+            if convert:
+                convert_everything(schema_entry)
+            builder.add_object(schema_entry)
+    else:
+        if convert:
+            convert_everything(schema_input)
+        builder.add_object(schema_input)
 
-def generate_from_files(
-    input_files: list[Path],
-    output_file: Path,
-    class_name: str | None = None,
-    *,
-    skip_conversions: bool = False,
-    remove_redundant_files: bool = False,
-) -> None:
-    """Generate Pydantic models from a list of JSON files.
-
-    Args:
-        input_files: The list of JSON files.
-        output_file: The file to write the generated models to.
-        class_name: The name of the main class to generate. If None, use the default
-        value from datamodel-code-generator.
-        skip_conversions: Whether to skip trying to convert string values to their
-        appropriate types. Defaults to False.
-        remove_redundant_files: If a file has no effect on the generated schema remove
-        it.
-
-    """
-    if remove_redundant_files:
-        _remove_redundant_files(input_files)
-
-    builder = SchemaBuilder()
-    for file in input_files:
-        parsed_json = json.loads(file.read_text())
-        if not skip_conversions:
-            _try_to_convert_everything(parsed_json)
-        builder.add_object(parsed_json)
-
-    _generate_from_genson(builder, output_file, class_name)
+    return builder
 
 
-def generate_from_object(
-    input_data: INPUT_TYPE,
-    output_file: Path,
-    class_name: str | None = None,
-    *,
-    skip_conversions: bool = False,
-) -> None:
-    """Generate Pydantic models from a Python object (dict or list).
-
-    Args:
-        input_data: The input data as a dict or list.
-        output_file: The file to write the generated models to.
-        class_name: The name of the main class to generate. If None, use the default
-        value from datamodel-code-generator.
-        replace_parent: Whether to remove the parent wrapper class. Defaults to False.
-        skip_conversions: Whether to skip trying to convert string values to their
-        appropriate types. Defaults to False.
-    """
-    if not skip_conversions:
-        _try_to_convert_everything(input_data)
-    builder = SchemaBuilder()
-    builder.add_object(input_data)
-    _generate_from_genson(builder, output_file, class_name)
-
-
-def _generate_from_genson(
-    input_data: SchemaBuilder,
+def generate_pydantic_model(
+    schema_input: Path | INPUT_TYPE | SchemaBuilder,
     output_file: Path,
     class_name: str | None = None,
 ) -> None:
-    """Generate Pydantic models from a Python object (dict or list).
+    """Generate Pydantic models from a JSON schema.
 
     Args:
-        input_data: The input data from Genson.
+        schema_input: Can be a Path to a JSON schema file, a dict/list containing
+            schema data, or a SchemaBuilder object.
         output_file: The file to write the generated models to.
         class_name: The name of the main class to generate. If None, use the default
-        value from datamodel-code-generator.
+            value from datamodel-code-generator.
     """
+    if isinstance(schema_input, SchemaBuilder):
+        builder = schema_input
+    else:
+        builder = SchemaBuilder()
+        if isinstance(schema_input, Path):
+            schema_input = json.loads(schema_input.read_text())
+        builder.add_schema(schema_input)
+
     output_file.parent.mkdir(parents=True, exist_ok=True)
     datamodel_code_generator.generate(
-        input_=input_data.to_json(),
+        input_=builder.to_json(),
         output=output_file,
         class_name=class_name,
         input_file_type=datamodel_code_generator.InputFileType.JsonSchema,
