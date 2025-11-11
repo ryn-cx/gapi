@@ -4,6 +4,7 @@ import json
 import shutil
 import subprocess
 from datetime import date, datetime, timedelta
+from logging import Logger, getLogger
 from pathlib import Path
 
 import datamodel_code_generator
@@ -13,12 +14,19 @@ from pydantic import TypeAdapter
 INPUT_TYPE = dict[str, "MAIN_TYPE"] | list["MAIN_TYPE"]
 MAIN_TYPE = INPUT_TYPE | datetime | date | timedelta | str | int | float | bool
 
+logger = getLogger(__name__)
+
 
 def convert_value(value: str) -> str | datetime | date | timedelta:
     """Convert a value to a more specific type if possible.
 
     Returns the converted value if successful, otherwise returns the original string.
     """
+    # Do not trust strings that are just digits because it's very easy for them to be
+    # cast to the wrong type.
+    if value.isdigit():
+        return value
+
     # datetime must be checked before date because it is a child class of date.
     with contextlib.suppress(ValueError):
         return TypeAdapter(datetime).validate_python(value)
@@ -67,23 +75,44 @@ def _load_original_schema(
         builder.add_schema(original_schema)
 
 
+def _parse_list_of_files(file_list: list[Path]) -> INPUT_TYPE:
+    """Parse a list of JSON file paths into data objects."""
+    parsed_data: list[MAIN_TYPE] = []
+    for path in file_list:
+        if not path.is_file():
+            msg = "All paths in list must be JSON files, not directories."
+            raise ValueError(msg)
+        if path.suffix != ".json":
+            msg = "All paths in list must be JSON files."
+            raise ValueError(msg)
+        parsed_data.append(json.loads(path.read_text()))
+    return parsed_data
+
+
 def _parse_schema_input(
-    schema_input: Path | INPUT_TYPE,
+    schema_input: Path | list[Path] | INPUT_TYPE,
     *,
     multiple_inputs: bool | None,
 ) -> tuple[INPUT_TYPE, bool | None]:
+    if isinstance(schema_input, list) and all(
+        isinstance(path, Path) for path in schema_input
+    ):
+        if multiple_inputs is None:
+            multiple_inputs = True
+        # reportArgumentType - The type is correct because of the if condition above.
+        parsed_data = _parse_list_of_files(schema_input)  # type: ignore[reportArgumentType]
+        return parsed_data, multiple_inputs
+
     if isinstance(schema_input, Path):
         if schema_input.is_file():
             if multiple_inputs is None:
                 multiple_inputs = False
-
             parsed_data = json.loads(schema_input.read_text())
             return parsed_data, multiple_inputs
 
         if schema_input.is_dir():
             if multiple_inputs is None:
                 multiple_inputs = True
-
             parsed_data = [
                 json.loads(json_file.read_text())
                 for json_file in schema_input.glob("*.json")
@@ -97,7 +126,7 @@ def _parse_schema_input(
 
 
 def generate_json_schema(
-    schema_input: Path | INPUT_TYPE,
+    schema_input: Path | list[Path] | INPUT_TYPE,
     original_schema: str | Path | dict[str, INPUT_TYPE] | None = None,
     *,
     multiple_inputs: bool | None = None,
@@ -106,8 +135,8 @@ def generate_json_schema(
     """Generate a JSON schema from a single input, which can be a file or an object.
 
     Args:
-        schema_input: Can be a Path to a JSON file/directory or a dict/list containing
-            input data.
+        schema_input: Can be a Path to a JSON file/directory, a list of Path objects
+            to JSON files, or a dict/list containing input data.
         original_schema: An optional original schema to use as a base.
         multiple_inputs: Whether the input_data contains multiple inputs. If None,
             this will be inferred from the type of input_data.
@@ -218,3 +247,35 @@ def update_json_schema_and_pydantic_model(
         schema = generate_json_schema(data)
     schema_path.write_text(schema.to_json())
     generate_pydantic_model(schema, model_path, class_name)
+
+
+def remove_redundant_files(
+    input_files: Path | list[Path],
+    logger: Logger = logger,
+) -> None:
+    """Remove redundant JSON files that produce the same schema.
+
+    Args:
+        input_files: Either a directory containing JSON files or a list of
+            JSON file paths.
+        logger: Logger instance to use for logging redundant files.
+    """
+    if isinstance(input_files, Path):
+        if not input_files.is_dir():
+            msg = "input_files must be a directory or a list of JSON files."
+            raise ValueError(msg)
+        input_files = list(input_files.glob("*.json"))
+
+    complete_schema = generate_json_schema(input_files).to_json()
+
+    # Loop through all of the files while ignoring a specific file each time to make
+    # sure each file is necessary to generate the schema.
+    for i, _ in enumerate(input_files):
+        test_files = input_files[:i] + input_files[i + 1 :]
+        partial_schema = generate_json_schema(test_files).to_json()
+        if partial_schema == complete_schema:
+            logger.info("File %s is redundant", input_files[i].name)
+            input_files[i].unlink()
+            input_files.pop(i)
+            remove_redundant_files(input_files, logger)
+            return
