@@ -14,7 +14,7 @@ from pydantic import TypeAdapter
 INPUT_TYPE = dict[str, "MAIN_TYPE"] | list["MAIN_TYPE"]
 MAIN_TYPE = INPUT_TYPE | datetime | date | timedelta | str | int | float | bool
 
-logger = getLogger(__name__)
+default_logger = getLogger(__name__)
 
 
 def convert_value(value: str) -> str | datetime | date | timedelta:
@@ -220,7 +220,7 @@ def generate_pydantic_model(
 
 
 def update_json_schema_and_pydantic_model(
-    data: INPUT_TYPE,
+    data: INPUT_TYPE | list[Path] | Path,
     schema_path: Path,
     model_path: Path,
     name: str | None = None,
@@ -251,7 +251,9 @@ def update_json_schema_and_pydantic_model(
 
 def remove_redundant_files(
     input_files: Path | list[Path],
-    logger: Logger = logger,
+    logger: Logger = default_logger,
+    complete_schema: SchemaBuilder | None = None,
+    starting_index: int = 0,
 ) -> None:
     """Remove redundant JSON files that produce the same schema.
 
@@ -259,6 +261,9 @@ def remove_redundant_files(
         input_files: Either a directory containing JSON files or a list of
             JSON file paths.
         logger: Logger instance to use for logging redundant files.
+        complete_schema: The complete schema generated from all input files. If None,
+            it will be generated from input_files.
+        starting_index: The index to start checking for redundant files from.
     """
     if isinstance(input_files, Path):
         if not input_files.is_dir():
@@ -266,16 +271,16 @@ def remove_redundant_files(
             raise ValueError(msg)
         input_files = list(input_files.glob("*.json"))
 
-    complete_schema = generate_json_schema(input_files).to_json()
+    complete_schema = complete_schema or generate_json_schema(input_files)
 
     # Loop through all of the files while ignoring a specific file each time to make
     # sure each file is necessary to generate the schema.
-    for i, _ in enumerate(input_files):
+    for i in range(starting_index, len(input_files)):
         test_files = input_files[:i] + input_files[i + 1 :]
-        partial_schema = generate_json_schema(test_files).to_json()
+        partial_schema = generate_json_schema(test_files)
         if partial_schema == complete_schema:
             logger.info("File %s is redundant", input_files[i].name)
             input_files[i].unlink()
             input_files.pop(i)
-            remove_redundant_files(input_files, logger)
+            remove_redundant_files(input_files, logger, complete_schema, i)
             return
