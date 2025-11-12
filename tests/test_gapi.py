@@ -54,92 +54,40 @@ class TestConvert:
 
 
 class TestConvertEverything:
-    def test_convert_datetime_string_in_dict(self) -> None:
+    def convert(self, input_data: str, expected_type: type) -> None:
+        """Helper function to test convert_everything."""
+        dict_input = {"key_1": input_data}
+        gapi.convert_everything(dict_input)
+        assert type(dict_input["key_1"]) is expected_type
+
+        list_input = [input_data]
+        gapi.convert_everything(list_input)
+        assert type(list_input[0]) is expected_type
+
+        nested_dict_input = {
+            "key_1": input_data,
+            "key_2": {"key_3": input_data},
+        }
+        gapi.convert_everything(nested_dict_input)
+        assert type(nested_dict_input["key_1"]) is expected_type
+        assert type(nested_dict_input["key_2"]["key_3"]) is expected_type
+
+        nested_list_input = [input_data, [input_data]]
+        gapi.convert_everything(nested_list_input)
+        assert type(nested_list_input[0]) is expected_type
+        assert type(nested_list_input[1][0]) is expected_type
+
+    def test_convert_datetime(self) -> None:
         """Test converting datetime strings in dict."""
-        dict_input = {"key_1": "2000-01-01T00:00:00Z"}
-        gapi.convert_everything(dict_input)
-        assert isinstance(dict_input["key_1"], datetime)
+        self.convert("2000-01-01T00:00:00Z", datetime)
 
-    def test_convert_datetime_string_in_list(self) -> None:
-        """Test converting datetime strings in list."""
-        list_input = ["2000-01-01T00:00:00Z"]
-        gapi.convert_everything(list_input)
-        assert isinstance(list_input[0], datetime)
-
-    def test_convert_datetime_nested_dict(self) -> None:
-        """Test converting datetime strings in nested dict."""
-        dict_input = {
-            "key_1": "2000-01-01T00:00:00Z",
-            "key_2": {"key_3": "2000-01-01T00:00:00Z"},
-        }
-        gapi.convert_everything(dict_input)
-        assert isinstance(dict_input["key_1"], datetime)
-        assert isinstance(dict_input["key_2"]["key_3"], datetime)
-
-    def test_convert_datetime_nested_list(self) -> None:
-        """Test converting datetime strings in nested list."""
-        list_input = ["2000-01-01T00:00:00Z", ["2000-01-01T00:00:00Z"]]
-        gapi.convert_everything(list_input)
-        assert isinstance(list_input[0], datetime)
-        assert isinstance(list_input[1][0], datetime)
-
-    def test_convert_date_string_in_dict(self) -> None:
+    def test_convert_date(self) -> None:
         """Test converting date strings in dict."""
-        dict_input = {"key_1": "2000-01-01"}
-        gapi.convert_everything(dict_input)
-        assert isinstance(dict_input["key_1"], date)
+        self.convert("2000-01-01", date)
 
-    def test_convert_date_string_in_list(self) -> None:
-        """Test converting date strings in list."""
-        list_input = ["2000-01-01"]
-        gapi.convert_everything(list_input)
-        assert isinstance(list_input[0], date)
-
-    def test_convert_date_nested_dict(self) -> None:
-        """Test converting date strings in nested dict."""
-        dict_input = {
-            "key_1": "2000-01-01",
-            "key_2": {"key_3": "2000-01-01"},
-        }
-        gapi.convert_everything(dict_input)
-        assert isinstance(dict_input["key_1"], date)
-        assert isinstance(dict_input["key_2"]["key_3"], date)
-
-    def test_convert_date_nested_list(self) -> None:
-        """Test converting date strings in nested list."""
-        list_input = ["2000-01-01", ["2000-01-01"]]
-        gapi.convert_everything(list_input)
-        assert isinstance(list_input[0], date)
-        assert isinstance(list_input[1][0], date)
-
-    def test_convert_timedelta_string_in_dict(self) -> None:
+    def test_convert_timedelta(self) -> None:
         """Test converting timedelta strings in dict."""
-        dict_input = {"key_1": "P1D"}
-        gapi.convert_everything(dict_input)
-        assert isinstance(dict_input["key_1"], timedelta)
-
-    def test_convert_timedelta_string_in_list(self) -> None:
-        """Test converting timedelta strings in list."""
-        list_input = ["P1D"]
-        gapi.convert_everything(list_input)
-        assert isinstance(list_input[0], timedelta)
-
-    def test_convert_timedelta_nested_dict(self) -> None:
-        """Test converting timedelta strings in nested dict."""
-        dict_input = {
-            "key_1": "P1D",
-            "key_2": {"key_3": "P1D"},
-        }
-        gapi.convert_everything(dict_input)
-        assert isinstance(dict_input["key_1"], gapi.timedelta)
-        assert isinstance(dict_input["key_2"]["key_3"], gapi.timedelta)
-
-    def test_convert_timedelta_nested_list(self) -> None:
-        """Test converting timedelta strings in nested list."""
-        list_input = ["P1D", ["P1D"]]
-        gapi.convert_everything(list_input)
-        assert isinstance(list_input[0], gapi.timedelta)
-        assert isinstance(list_input[1][0], gapi.timedelta)
+        self.convert("P1D", timedelta)
 
 
 class TestGenerateJsonSchema:

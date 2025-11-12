@@ -1,6 +1,7 @@
 import contextlib
 import copy
 import json
+import re
 import shutil
 import subprocess
 from datetime import date, datetime, timedelta
@@ -27,12 +28,15 @@ def convert_value(value: str) -> str | datetime | date | timedelta:
     if value.isdigit():
         return value
 
-    # datetime must be checked before date because it is a child class of date.
-    with contextlib.suppress(ValueError):
-        return TypeAdapter(datetime).validate_python(value)
+    # datetime and date basically overlap so extra checks need to be done. The easiest
+    # way to do this is to only validate dates of the string matches a date format and
+    # assume everything else is a datetime becasue datetime is more complex than dates.
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}$", value):
+        with contextlib.suppress(ValueError):
+            return TypeAdapter(date).validate_python(value)
 
     with contextlib.suppress(ValueError):
-        return TypeAdapter(date).validate_python(value)
+        return TypeAdapter(datetime).validate_python(value)
 
     with contextlib.suppress(ValueError):
         return TypeAdapter(timedelta).validate_python(value)
