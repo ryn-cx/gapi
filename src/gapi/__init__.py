@@ -309,7 +309,7 @@ class CustomField(BaseModel):
 
 class CustomSerializer(BaseModel):
     class_name: str
-    serializer_code: str
+    serializer_code: list[str] | str
 
 
 class GapiCustomizations(BaseModel):
@@ -369,14 +369,18 @@ def _apply_serializer_customizations(
         "from typing import Any\nfrom pydantic import field_serializer, ",
     )
 
-    for custom_serializer in gapi_customizations.custom_serializers:
-        class_line = f"class {custom_serializer.class_name}(BaseModel):"
+    for serializer in gapi_customizations.custom_serializers:
+        class_line = f"class {serializer.class_name}(BaseModel):"
+        if isinstance(serializer.serializer_code, str):
+            serializer.serializer_code = serializer.serializer_code.split("\n")
+
+        serializer.serializer_code = [x.strip() for x in serializer.serializer_code]
 
         replacement_string = (
             class_line
             + f"""\n    @field_serializer("updated_at")
     def serialize_datetime(self, value: Any, _info: Any) -> str:
-        return {custom_serializer.serializer_code}
+        {"\n        ".join(serializer.serializer_code)}
 """
         )
 

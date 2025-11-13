@@ -482,13 +482,13 @@ class TestCustomFields:
             temp_schema_path.unlink()
             temp_model_path.unlink()
 
-
-class TestCustomSerializers:
-    def test_add_serializer(
+    def test_add_multiple_line_serializer_with_space(
         self,
     ) -> None:
         """Test applying GAPI customizations to a Pydantic model file."""
-        specific_expected_output = Path("tests/test_data/custom_serializer.py")
+        specific_expected_output = Path(
+            "tests/test_data/custom_multiple_line_serializer.py",
+        )
         with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
             temp_model_path = Path(f.name)
             temp_model_path.write_text(EXPECTED_SCHEMA_PATH.read_text())
@@ -497,7 +497,8 @@ class TestCustomSerializers:
             custom_serializers=[
                 gapi.CustomSerializer(
                     class_name="Model",
-                    serializer_code='value.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"',
+                    serializer_code='strf_string ="%Y-%m-%dT%H:%M:%S.%f"\n'
+                    " return value.strftime(strf_string)",
                 ),
             ],
         )
@@ -507,7 +508,100 @@ class TestCustomSerializers:
                 temp_model_path,
                 customizations,
             )
-            specific_expected_output.write_text(temp_model_path.read_text())
+            assert temp_model_path.read_text() == specific_expected_output.read_text()
+        finally:
+            temp_model_path.unlink()
+
+    def test_add_multiple_line_serializer_without_space(
+        self,
+    ) -> None:
+        """Test applying GAPI customizations to a Pydantic model file."""
+        specific_expected_output = Path(
+            "tests/test_data/custom_multiple_line_serializer.py",
+        )
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+            temp_model_path = Path(f.name)
+            temp_model_path.write_text(EXPECTED_SCHEMA_PATH.read_text())
+
+        customizations = gapi.GapiCustomizations(
+            custom_serializers=[
+                gapi.CustomSerializer(
+                    class_name="Model",
+                    serializer_code='strf_string ="%Y-%m-%dT%H:%M:%S.%f"\n'
+                    "return value.strftime(strf_string)",
+                ),
+            ],
+        )
+
+        try:
+            gapi.apply_customizations(
+                temp_model_path,
+                customizations,
+            )
+            assert temp_model_path.read_text() == specific_expected_output.read_text()
+        finally:
+            temp_model_path.unlink()
+
+    def test_add_list_serializer_without_space(
+        self,
+    ) -> None:
+        """Test applying GAPI customizations to a Pydantic model file."""
+        specific_expected_output = Path(
+            "tests/test_data/custom_multiple_line_serializer.py",
+        )
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+            temp_model_path = Path(f.name)
+            temp_model_path.write_text(EXPECTED_SCHEMA_PATH.read_text())
+
+        customizations = gapi.GapiCustomizations(
+            custom_serializers=[
+                gapi.CustomSerializer(
+                    class_name="Model",
+                    serializer_code=[
+                        'strf_string ="%Y-%m-%dT%H:%M:%S.%f"\n',
+                        "return value.strftime(strf_string)",
+                    ],
+                ),
+            ],
+        )
+
+        try:
+            gapi.apply_customizations(
+                temp_model_path,
+                customizations,
+            )
+            assert temp_model_path.read_text() == specific_expected_output.read_text()
+        finally:
+            temp_model_path.unlink()
+
+    def test_add_list_serializer_with_space(
+        self,
+    ) -> None:
+        """Test applying GAPI customizations to a Pydantic model file."""
+        specific_expected_output = Path(
+            "tests/test_data/custom_multiple_line_serializer.py",
+        )
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+            temp_model_path = Path(f.name)
+            temp_model_path.write_text(EXPECTED_SCHEMA_PATH.read_text())
+
+        customizations = gapi.GapiCustomizations(
+            custom_serializers=[
+                gapi.CustomSerializer(
+                    class_name="Model",
+                    serializer_code=[
+                        'strf_string ="%Y-%m-%dT%H:%M:%S.%f"\n',
+                        " return value.strftime(strf_string)",
+                    ],
+                ),
+            ],
+        )
+
+        try:
+            gapi.apply_customizations(
+                temp_model_path,
+                customizations,
+            )
             assert temp_model_path.read_text() == specific_expected_output.read_text()
         finally:
             temp_model_path.unlink()
