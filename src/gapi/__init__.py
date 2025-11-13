@@ -309,6 +309,7 @@ class CustomField(BaseModel):
 
 class CustomSerializer(BaseModel):
     class_name: str
+    field_name: str
     serializer_code: list[str] | str
 
 
@@ -378,7 +379,7 @@ def _apply_serializer_customizations(
 
         replacement_string = (
             class_line
-            + f"""\n    @field_serializer("updated_at")
+            + f"""\n    @field_serializer("{serializer.field_name}")
     def serialize_datetime(self, value: Any, _info: Any) -> str:
         {"\n        ".join(serializer.serializer_code)}
 """

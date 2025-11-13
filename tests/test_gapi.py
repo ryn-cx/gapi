@@ -260,7 +260,6 @@ class TestGenerateJsonSchema:
         """Test updating existing schema with new object."""
         existing_schema = json.loads(TEST_SCHEMA_PATH.read_text())
         output = gapi.generate_json_schema(APPENDED_TEST_DATA, existing_schema)
-        TEST_SCHEMA_UPDATED_PATH.write_text(output.to_json())
         expected = json.loads(TEST_SCHEMA_UPDATED_PATH.read_text())
         assert json.loads(output.to_json()) == expected
 
@@ -497,6 +496,7 @@ class TestCustomFields:
             custom_serializers=[
                 gapi.CustomSerializer(
                     class_name="Model",
+                    field_name="updated_at",
                     serializer_code='strf_string ="%Y-%m-%dT%H:%M:%S.%f"\n'
                     " return value.strftime(strf_string)",
                 ),
@@ -527,6 +527,7 @@ class TestCustomFields:
             custom_serializers=[
                 gapi.CustomSerializer(
                     class_name="Model",
+                    field_name="updated_at",
                     serializer_code='strf_string ="%Y-%m-%dT%H:%M:%S.%f"\n'
                     "return value.strftime(strf_string)",
                 ),
@@ -557,6 +558,7 @@ class TestCustomFields:
             custom_serializers=[
                 gapi.CustomSerializer(
                     class_name="Model",
+                    field_name="updated_at",
                     serializer_code=[
                         'strf_string ="%Y-%m-%dT%H:%M:%S.%f"\n',
                         "return value.strftime(strf_string)",
@@ -589,6 +591,7 @@ class TestCustomFields:
             custom_serializers=[
                 gapi.CustomSerializer(
                     class_name="Model",
+                    field_name="updated_at",
                     serializer_code=[
                         'strf_string ="%Y-%m-%dT%H:%M:%S.%f"\n',
                         " return value.strftime(strf_string)",
