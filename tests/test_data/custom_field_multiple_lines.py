@@ -29,3 +29,4 @@ class Model(BaseModel):
     field_list: list[AwareDatetime] = Field(..., alias="_list")
     field_dict: FieldDict = Field(..., alias="_dict")
     field_name_that_is_long_with_multiple_lines: str
+    mixed_numbers: list[int | float]

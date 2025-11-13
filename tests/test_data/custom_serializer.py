@@ -37,3 +37,4 @@ class Model(BaseModel):
         ...,
         alias="FieldNameThatIsLongWithMultipleLines",
     )
+    mixed_numbers: list[int | float]

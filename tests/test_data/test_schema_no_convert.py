@@ -3,9 +3,7 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
-
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FieldDict(BaseModel):
@@ -19,14 +17,14 @@ class Model(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    field_datetime: AwareDatetime
-    field_date: date = Field(..., alias="_date")
-    field_timedelta: timedelta = Field(..., alias="_timedelta")
+    field_datetime: str = Field(..., alias="_datetime")
+    field_date: str = Field(..., alias="_date")
+    field_timedelta: str = Field(..., alias="_timedelta")
     field_int: int = Field(..., alias="_int")
     field_float: float = Field(..., alias="_float")
     field_str: str = Field(..., alias="_str")
     field_bool: bool = Field(..., alias="_bool")
-    field_list: list[AwareDatetime] = Field(..., alias="_list")
+    field_list: list[str] = Field(..., alias="_list")
     field_dict: FieldDict = Field(..., alias="_dict")
     field_name_that_is_long_with_multiple_lines: str = Field(
         ...,
