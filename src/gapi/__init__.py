@@ -378,7 +378,7 @@ def _apply_serializer_customizations(
         replacement_string = (
             class_line
             + f"""\n    @field_serializer("{serializer.field_name}")
-    def serialize_datetime(self, value: Any, _info: Any) -> str:
+    def serialize_datetime(self, value: Any, _info: Any) -> Any:
         {"\n        ".join(serializer.serializer_code)}
 """
         )
