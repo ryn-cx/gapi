@@ -375,8 +375,6 @@ def _apply_serializer_customizations(
         if isinstance(serializer.serializer_code, str):
             serializer.serializer_code = serializer.serializer_code.split("\n")
 
-        serializer.serializer_code = [x.strip() for x in serializer.serializer_code]
-
         replacement_string = (
             class_line
             + f"""\n    @field_serializer("{serializer.field_name}")
