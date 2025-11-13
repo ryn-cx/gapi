@@ -10,7 +10,7 @@ from pathlib import Path
 
 import datamodel_code_generator
 from degenson import SchemaBuilder
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
 INPUT_TYPE = dict[str, "MAIN_TYPE"] | list["MAIN_TYPE"]
 MAIN_TYPE = INPUT_TYPE | datetime | date | timedelta | str | int | float | bool
@@ -169,6 +169,29 @@ def generate_json_schema(
     return builder
 
 
+def _format_with_ruff(file_path: Path) -> None:
+    """Format a Python file using ruff via uv.
+
+    Args:
+        file_path: Path to the Python file to format.
+    """
+    if not shutil.which("uv"):
+        return
+
+    subprocess.run(
+        ["uv", "run", "ruff", "check", "--fix", str(file_path)],  # noqa: S607
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
+    )
+    subprocess.run(
+        ["uv", "run", "ruff", "format", str(file_path)],  # noqa: S607
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
+    )
+
+
 def generate_pydantic_model(
     schema_input: Path | INPUT_TYPE | SchemaBuilder,
     output_file: Path,
@@ -208,19 +231,7 @@ def generate_pydantic_model(
     # datamodel-code-generator relies on a global installation of ruff which may not be
     # present, this is a backup to ensure the generated code is formatted if ruff
     # isn't available but uv is.
-    if shutil.which("uv"):
-        subprocess.run(
-            ["uv", "run", "ruff", "check", "--fix", str(output_file)],  # noqa: S607
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
-        )
-        subprocess.run(
-            ["uv", "run", "ruff", "format", str(output_file)],  # noqa: S607
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
-        )
+    _format_with_ruff(output_file)
 
 
 def update_json_schema_and_pydantic_model(
@@ -288,3 +299,104 @@ def remove_redundant_files(
             input_files.pop(i)
             remove_redundant_files(input_files, logger, complete_schema, i)
             return
+
+
+class CustomField(BaseModel):
+    class_name: str
+    field_name: str
+    new_field: str
+
+
+class CustomSerializer(BaseModel):
+    class_name: str
+    serializer_code: str
+
+
+class GapiCustomizations(BaseModel):
+    custom_fields: list[CustomField] = []
+    custom_serializers: list[CustomSerializer] = []
+
+
+def _apply_field_customizations(
+    model_content: str,
+    gapi_customizations: GapiCustomizations,
+) -> str:
+    for custom_field in gapi_customizations.custom_fields:
+        class_line = f"class {custom_field.class_name}(BaseModel):"
+
+        inside_of_class = False
+        lines = model_content.splitlines()
+        for i, line in enumerate(lines):
+            if line.startswith(class_line):
+                inside_of_class = True
+            elif inside_of_class and line.startswith("class "):
+                msg = (
+                    f"Field {custom_field.field_name} not found"
+                    "in class {custom_field.class_name}."
+                )
+                raise ValueError(msg)
+            if inside_of_class and line.startswith(f"    {custom_field.field_name}:"):
+                lines_to_replace = [line]
+                j = i
+                if line.rstrip().endswith(("(", "[")):
+                    while not lines[j].endswith((")", "]")):
+                        lines_to_replace.append(lines[j + 1])
+                        j += 1
+
+                field_definition = f"    {custom_field.new_field}"
+                model_content = model_content.replace(
+                    "\n".join(lines_to_replace),
+                    field_definition,
+                )
+                break
+        else:
+            msg = f"Class {custom_field.class_name} not found in model."
+            raise ValueError(msg)
+
+    return model_content
+
+
+def _apply_serializer_customizations(
+    model_content: str,
+    gapi_customizations: GapiCustomizations,
+) -> str:
+    if not gapi_customizations.custom_serializers:
+        return model_content
+
+    # Add necessary imports
+    model_content = model_content.replace(
+        "from pydantic import ",
+        "from typing import Any\nfrom pydantic import field_serializer, ",
+    )
+
+    for custom_serializer in gapi_customizations.custom_serializers:
+        class_line = f"class {custom_serializer.class_name}(BaseModel):"
+
+        replacement_string = (
+            class_line
+            + f"""\n    @field_serializer("updated_at")
+    def serialize_datetime(self, value: Any, _info: Any) -> str:
+        return {custom_serializer.serializer_code}
+"""
+        )
+
+        model_content = model_content.replace(class_line, replacement_string)
+
+    return model_content
+
+
+def apply_customizations(
+    model_path: Path,
+    gapi_customizations: GapiCustomizations,
+) -> None:
+    """Apply customizations to a Pydantic model file.
+
+    Args:
+        model_path: Path to the Pydantic model file.
+        gapi_customizations: The customizations to apply.
+    """
+    model_content = model_path.read_text()
+    model_content = _apply_field_customizations(model_content, gapi_customizations)
+    model_content = _apply_serializer_customizations(model_content, gapi_customizations)
+    model_path.write_text(model_content)
+    _format_with_ruff(model_path)

@@ -5,12 +5,15 @@ from pathlib import Path
 
 import gapi
 
-TEST_SCHEMA_PATH = Path("tests/test_schema.json")
-TEST_SCHEMA_NO_CONVERT_PATH = Path("tests/test_schema_no_convert.json")
-TEST_SCHEMA_UPDATED_PATH = Path("tests/test_schema_updated.json")
-TEST_SCHEMA_UPDATED_NO_CONVERT_PATH = Path("tests/test_schema_updated_no_convert.json")
-EXPECTED_SCHEMA_PATH = Path("tests/expected_schema.py")
-UPDATED_EXPECTED_SCHEMA_PATH = Path("tests/updated_expected_schema.py")
+TEST_DATA_FOLDER = Path("tests/test_data/")
+TEST_SCHEMA_PATH = TEST_DATA_FOLDER / "test_schema.json"
+TEST_SCHEMA_NO_CONVERT_PATH = TEST_DATA_FOLDER / "test_schema_no_convert.json"
+TEST_SCHEMA_UPDATED_PATH = TEST_DATA_FOLDER / "test_schema_updated.json"
+TEST_SCHEMA_UPDATED_NO_CONVERT_PATH = (
+    TEST_DATA_FOLDER / "test_schema_updated_no_convert.json"
+)
+EXPECTED_SCHEMA_PATH = TEST_DATA_FOLDER / "expected_schema.py"
+UPDATED_EXPECTED_SCHEMA_PATH = TEST_DATA_FOLDER / "updated_expected_schema.py"
 
 
 TEST_DATA: gapi.INPUT_TYPE = {
@@ -25,8 +28,9 @@ TEST_DATA: gapi.INPUT_TYPE = {
         "2000-01-01T00:00:00Z",
     ],
     "_dict": {
-        "key": "2000-01-01T00:00:00Z",
+        "key": "string",
     },
+    "FieldNameThatIsLongWithMultipleLines": "string",
 }
 
 APPENDED_TEST_DATA: gapi.INPUT_TYPE = {
@@ -349,3 +353,105 @@ class TestRemoveRedundantFiles:
 
             remaining_files = list(tmpdir.glob("*.json"))
             assert len(remaining_files) == 1
+
+
+class TestCustomFields:
+    def test_apply_single_line_customization(
+        self,
+    ) -> None:
+        """Test applying GAPI customizations to a Pydantic model file."""
+        specific_expected_output = Path("tests/test_data/custom_field_single_line.py")
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+            temp_model_path = Path(f.name)
+            temp_model_path.write_text(EXPECTED_SCHEMA_PATH.read_text())
+
+        customizations = gapi.GapiCustomizations(
+            custom_fields=[
+                gapi.CustomField(
+                    class_name="Model",
+                    field_name="field_datetime",
+                    new_field="field_datetime: AwareDatetime",
+                ),
+            ],
+        )
+
+        try:
+            gapi.apply_customizations(
+                temp_model_path,
+                customizations,
+            )
+            assert temp_model_path.read_text() == specific_expected_output.read_text()
+        finally:
+            temp_model_path.unlink()
+
+    def test_apply_multiple_line_customization(
+        self,
+    ) -> None:
+        """Test applying GAPI customizations to a Pydantic model file."""
+        specific_expected_output = Path(
+            "tests/test_data/custom_field_multiple_lines.py",
+        )
+        test_data = TEST_DATA.copy()
+        test_data["FieldNameThatIsLongWithMultipleLines"] = "String"
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            temp_schema_path = Path(f.name)
+        temp_schema_path.unlink()
+
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+            temp_model_path = Path(f.name)
+        temp_model_path.unlink()
+        gapi.update_json_schema_and_pydantic_model(
+            test_data,
+            temp_schema_path,
+            temp_model_path,
+        )
+        customizations = gapi.GapiCustomizations(
+            custom_fields=[
+                gapi.CustomField(
+                    class_name="Model",
+                    field_name="field_name_that_is_long_with_multiple_lines",
+                    new_field="field_name_that_is_long_with_multiple_lines: str",
+                ),
+            ],
+        )
+
+        try:
+            gapi.apply_customizations(
+                temp_model_path,
+                customizations,
+            )
+            assert temp_model_path.read_text() == specific_expected_output.read_text()
+        finally:
+            temp_schema_path.unlink()
+            temp_model_path.unlink()
+
+
+class TestCustomSerializers:
+    def test_add_serializer(
+        self,
+    ) -> None:
+        """Test applying GAPI customizations to a Pydantic model file."""
+        specific_expected_output = Path("tests/test_data/custom_serializer.py")
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+            temp_model_path = Path(f.name)
+            temp_model_path.write_text(EXPECTED_SCHEMA_PATH.read_text())
+
+        customizations = gapi.GapiCustomizations(
+            custom_serializers=[
+                gapi.CustomSerializer(
+                    class_name="Model",
+                    serializer_code='value.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"',
+                ),
+            ],
+        )
+
+        try:
+            gapi.apply_customizations(
+                temp_model_path,
+                customizations,
+            )
+            specific_expected_output.write_text(temp_model_path.read_text())
+            assert temp_model_path.read_text() == specific_expected_output.read_text()
+        finally:
+            temp_model_path.unlink()
