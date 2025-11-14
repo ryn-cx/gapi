@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import subprocess
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 from logging import Logger, getLogger
 from pathlib import Path
@@ -308,7 +309,7 @@ class CustomField(BaseModel):
 
 
 class CustomSerializer(BaseModel):
-    class_name: str
+    class_name: str | None = None
     field_name: str
     serializer_code: list[str] | str
 
@@ -357,40 +358,84 @@ def _apply_field_customizations(
     return model_content
 
 
+def _class_has_field(
+    lines: Sequence[str],
+    class_index: int,
+    field_name: str,
+) -> bool:
+    i = class_index + 1
+    while i < len(lines):
+        # Stop if we hit another class definition
+        if lines[i].strip().startswith("class "):
+            return False
+        # Check if this line contains the field
+        if lines[i].strip().startswith(f"{field_name}:"):
+            return True
+        i += 1
+    return False
+
+
 def _apply_serializer_customizations(
     model_content: str,
     gapi_customizations: GapiCustomizations,
 ) -> str:
-    if not gapi_customizations.custom_serializers:
-        return model_content
-
-    # Add necessary imports
+    lines = model_content.splitlines(keepends=True)
     model_content = model_content.replace(
         "from pydantic import ",
         "from typing import Any\nfrom pydantic import field_serializer, ",
     )
 
     for serializer in gapi_customizations.custom_serializers:
-        class_line = f"class {serializer.class_name}(BaseModel):"
+        # Convert serializer_code to list if it's a string
         if isinstance(serializer.serializer_code, str):
-            serializer.serializer_code = serializer.serializer_code.split("\n")
+            code_lines = serializer.serializer_code.split("\n")
+        else:
+            code_lines = serializer.serializer_code
 
-        replacement_string = (
-            class_line
-            + f"""\n    @field_serializer("{serializer.field_name}")
-    def serialize_datetime(self, value: Any, _info: Any) -> Any:
-        {"\n        ".join(serializer.serializer_code)}
+        serializer_method = f"""    @field_serializer("{serializer.field_name}")
+    def serialize_{serializer.field_name}(self, value: Any, _info: Any) -> Any:
+        {"\n        ".join(code_lines)}
 """
-        )
 
-        model_content = model_content.replace(class_line, replacement_string)
+        if serializer.class_name:
+            class_line = f"class {serializer.class_name}(BaseModel):"
+            for i, line in enumerate(lines):
+                if f"class {serializer.class_name}(BaseModel):" in line:
+                    if not _class_has_field(lines, i, serializer.field_name):
+                        msg = (
+                            f"Field {serializer.field_name} not found"
+                            "in class {serializer.class_name}."
+                        )
+                        raise ValueError(msg)
+                    replacement_string = class_line + "\n" + serializer_method
+                    model_content = model_content.replace(
+                        class_line,
+                        replacement_string,
+                    )
+                    break
+            else:
+                msg = f"Class {serializer.class_name} not found in model."
+                raise ValueError(msg)
+        else:
+            # Apply to all classes that have the field
+            lines_to_replace = []
+
+            for i, line in enumerate(lines):
+                # Check if this is a class definition
+                is_class = line.strip().startswith("class ")
+                if is_class and _class_has_field(lines, i, serializer.field_name):
+                    lines_to_replace.append(line)
+
+            for line in lines_to_replace:
+                replacement_string = line + "\n" + serializer_method
+                model_content = model_content.replace(line, replacement_string)
 
     return model_content
 
 
 def apply_customizations(
     model_path: Path,
-    gapi_customizations: GapiCustomizations,
+    gapi_customizations: GapiCustomizations | None = None,
 ) -> None:
     """Apply customizations to a Pydantic model file.
 
@@ -398,6 +443,9 @@ def apply_customizations(
         model_path: Path to the Pydantic model file.
         gapi_customizations: The customizations to apply.
     """
+    if not gapi_customizations:
+        return
+
     model_content = model_path.read_text()
     model_content = _apply_field_customizations(model_content, gapi_customizations)
     model_content = _apply_serializer_customizations(model_content, gapi_customizations)
