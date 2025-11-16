@@ -24,9 +24,14 @@ def convert_value(value: str) -> str | datetime | date | timedelta:
 
     Returns the converted value if successful, otherwise returns the original string.
     """
-    # Do not trust strings that are just digits because it's very easy for them to be
-    # cast to the wrong type.
-    if value.isdigit():
+    # Do not trust strings that are just integers/flaots because it's very easy for them
+    # to be cast to the wrong type.
+    with contextlib.suppress(ValueError):
+        int(value)
+        return value
+
+    with contextlib.suppress(ValueError):
+        float(value)
         return value
 
     # datetime and date basically overlap so extra checks need to be done. The easiest
