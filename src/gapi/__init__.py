@@ -278,8 +278,7 @@ def _replace_untyped_lists(model_path: Path) -> None:
         model_path: Path to the Pydantic model file.
     """
     model_content = model_path.read_text()
-    model_content = model_content.replace(": list =", ": list[None] =")
-    model_content = model_content.replace(": list\n", ": list[None]\n")
+    model_content = model_content.replace(" list ", " list[None] ")
     model_path.write_text(model_content)
 
 
