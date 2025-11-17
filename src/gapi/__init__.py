@@ -237,8 +237,8 @@ def generate_pydantic_model(
     # datamodel-code-generator relies on a global installation of ruff which may not be
     # present, this is a backup to ensure the generated code is formatted if ruff
     # isn't available but uv is.
-    _replace_untyped_lists(output_file)
     _format_with_ruff(output_file)
+    _replace_untyped_lists(output_file)
 
 
 def update_json_schema_and_pydantic_model(
