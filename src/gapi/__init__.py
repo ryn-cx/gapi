@@ -237,6 +237,7 @@ def generate_pydantic_model(
     # datamodel-code-generator relies on a global installation of ruff which may not be
     # present, this is a backup to ensure the generated code is formatted if ruff
     # isn't available but uv is.
+    _replace_untyped_lists(output_file)
     _format_with_ruff(output_file)
 
 
@@ -268,6 +269,18 @@ def update_json_schema_and_pydantic_model(
         schema = generate_json_schema(data)
     schema_path.write_text(schema.to_json())
     generate_pydantic_model(schema, model_path, class_name)
+
+
+def _replace_untyped_lists(model_path: Path) -> None:
+    """Replace untyped lists in a Pydantic model file with list[None].
+
+    Args:
+        model_path: Path to the Pydantic model file.
+    """
+    model_content = model_path.read_text()
+    model_content = model_content.replace(": list =", ": list[None] =")
+    model_content = model_content.replace(": list\n", ": list[None]\n")
+    model_path.write_text(model_content)
 
 
 def remove_redundant_files(
