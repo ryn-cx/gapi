@@ -1,17 +1,22 @@
 import contextlib
 import copy
+import importlib
 import json
+import logging
 import re
 import shutil
 import subprocess
+import sys
+from abc import abstractmethod
 from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 from logging import Logger, getLogger
 from pathlib import Path
+from typing import Any
 
 import datamodel_code_generator
 from degenson import SchemaBuilder
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 INPUT_TYPE = dict[str, "MAIN_TYPE"] | list["MAIN_TYPE"]
 MAIN_TYPE = INPUT_TYPE | datetime | date | timedelta | str | int | float | bool
@@ -469,3 +474,71 @@ def apply_customizations(
     model_content = _apply_serializer_customizations(model_content, gapi_customizations)
     model_path.write_text(model_content)
     _format_with_ruff(model_path)
+
+
+def reload_model[T: BaseModel](model_class: type[T]) -> type[T]:
+    """Dynamically reload a model class by reloading its module.
+
+    Returns:
+        The reloaded class from the reloaded module
+    """
+    module = sys.modules[model_class.__module__]
+
+    if hasattr(module, "__cached__") and module.__cached__:
+        cached_path = Path(module.__cached__)
+        if cached_path.exists():
+            cached_path.unlink()
+
+    reloaded_module = importlib.reload(module)
+    return getattr(reloaded_module, model_class.__name__)
+
+
+class AbstractGapiClient:
+    logger: logging.Logger
+
+    def dump_response(self, data: BaseModel) -> dict[str, Any]:
+        """Dump an API response to a JSON serializable object."""
+        return data.model_dump(mode="json", by_alias=True, exclude_unset=True)
+
+    @abstractmethod
+    def save_file(self, name: str, data: dict[str, Any]) -> None: ...
+
+    @abstractmethod
+    def update_model(
+        self,
+        name: str,
+        customizations: GapiCustomizations | None = None,
+    ) -> None: ...
+
+    @abstractmethod
+    def files_path(self) -> Path: ...
+
+    def parse_response[T: BaseModel](
+        self,
+        response_model: type[T],
+        data: dict[str, Any],
+        name: str,
+        customizations: GapiCustomizations | None = None,
+    ) -> T:
+        try:
+            parsed = response_model.model_validate(data)
+        except ValidationError:
+            self.save_file(name, data)
+            self.update_model(name, customizations)
+            response_model = reload_model(response_model)
+            parsed = response_model.model_validate(data)
+            self.logger.info("Updated model %s.", response_model.__name__)
+
+        if self.dump_response(parsed) != data:
+            self.save_file(name, data)
+            temp_path = self.files_path() / "_temp"
+            named_temp_path = temp_path / name
+            named_temp_path.mkdir(parents=True, exist_ok=True)
+            original_path = named_temp_path / "original.json"
+            parsed_path = named_temp_path / "parsed.json"
+            original_path.write_text(json.dumps(data, indent=2))
+            parsed_path.write_text(json.dumps(self.dump_response(parsed), indent=2))
+            msg = "Parsed response does not match original response."
+            raise ValueError(msg)
+
+        return parsed
