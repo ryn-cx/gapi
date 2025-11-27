@@ -494,7 +494,7 @@ def reload_model[T: BaseModel](model_class: type[T]) -> type[T]:
 
 
 class AbstractGapiClient:
-    logger: logging.Logger
+    logger: logging.Logger = default_logger
 
     @overload
     def dump_response(
@@ -543,7 +543,8 @@ class AbstractGapiClient:
             self.update_model(name, "response", customizations)
             response_model = reload_model(response_model)
             parsed = response_model.model_validate(data)
-            self.logger.info("Updated model %s.", response_model.__name__)
+            if getattr(self, "logger", None):
+                self.logger.info("Updated model %s.", response_model.__name__)
 
         if self.dump_response(parsed) != data:
             self.save_file(name, data, "response")
