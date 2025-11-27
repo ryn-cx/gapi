@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 from logging import Logger, getLogger
 from pathlib import Path
-from typing import Any
+from typing import Any, overload
 
 import datamodel_code_generator
 from degenson import SchemaBuilder
@@ -496,17 +496,33 @@ def reload_model[T: BaseModel](model_class: type[T]) -> type[T]:
 class AbstractGapiClient:
     logger: logging.Logger
 
-    def dump_response(self, data: BaseModel) -> dict[str, Any]:
+    @overload
+    def dump_response(
+        self,
+        data: list[list[BaseModel]],
+    ) -> list[list[dict[str, Any]]]: ...
+    @overload
+    def dump_response(self, data: list[BaseModel]) -> list[dict[str, Any]]: ...
+    @overload
+    def dump_response(self, data: BaseModel) -> dict[str, Any]: ...
+    def dump_response(
+        self,
+        data: BaseModel | list[BaseModel] | list[list[BaseModel]],
+    ) -> dict[str, Any] | list[dict[str, Any]] | list[list[dict[str, Any]]]:
         """Dump an API response to a JSON serializable object."""
+        if isinstance(data, list):
+            return [self.dump_response(item) for item in data]
+
         return data.model_dump(mode="json", by_alias=True, exclude_unset=True)
 
     @abstractmethod
-    def save_file(self, name: str, data: dict[str, Any]) -> None: ...
+    def save_file(self, name: str, data: dict[str, Any], model_type: str) -> None: ...
 
     @abstractmethod
     def update_model(
         self,
         name: str,
+        model_type: str,
         customizations: GapiCustomizations | None = None,
     ) -> None: ...
 
@@ -523,14 +539,14 @@ class AbstractGapiClient:
         try:
             parsed = response_model.model_validate(data)
         except ValidationError:
-            self.save_file(name, data)
-            self.update_model(name, customizations)
+            self.save_file(name, data, "response")
+            self.update_model(name, "response", customizations)
             response_model = reload_model(response_model)
             parsed = response_model.model_validate(data)
             self.logger.info("Updated model %s.", response_model.__name__)
 
         if self.dump_response(parsed) != data:
-            self.save_file(name, data)
+            self.save_file(name, data, "response")
             temp_path = self.files_path() / "_temp"
             named_temp_path = temp_path / name
             named_temp_path.mkdir(parents=True, exist_ok=True)
