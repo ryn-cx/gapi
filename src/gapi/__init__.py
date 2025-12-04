@@ -340,6 +340,7 @@ class CustomSerializer(BaseModel):
 class GapiCustomizations(BaseModel):
     custom_fields: list[CustomField] = []
     custom_serializers: list[CustomSerializer] = []
+    custom_imports: list[str] = []
 
 
 def _apply_field_customizations(
@@ -456,6 +457,20 @@ def _apply_serializer_customizations(
     return model_content
 
 
+def _apply_import_customizations(
+    model_content: str,
+    gapi_customizations: GapiCustomizations,
+) -> str:
+    """Add custom imports after the #   filename:  <stdin> line."""
+    lines = model_content.splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        if "#   filename:  <stdin>" in line:
+            for j, import_line in enumerate(gapi_customizations.custom_imports):
+                lines.insert(i + 1 + j, f"{import_line}\n")
+
+    return "".join(lines)
+
+
 def apply_customizations(
     model_path: Path,
     gapi_customizations: GapiCustomizations | None = None,
@@ -470,6 +485,7 @@ def apply_customizations(
         return
 
     model_content = model_path.read_text()
+    model_content = _apply_import_customizations(model_content, gapi_customizations)
     model_content = _apply_field_customizations(model_content, gapi_customizations)
     model_content = _apply_serializer_customizations(model_content, gapi_customizations)
     model_path.write_text(model_content)

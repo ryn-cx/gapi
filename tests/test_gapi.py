@@ -570,3 +570,38 @@ class TestCustomFields:
             assert temp_model_path.read_text() == specific_expected_output.read_text()
         finally:
             temp_model_path.unlink()
+
+    def test_add_custom_imports(self) -> None:
+        """Test adding custom imports after the filename comment line."""
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+            temp_model_path = Path(f.name)
+            temp_model_path.write_text(EXPECTED_SCHEMA_PATH.read_text())
+
+        customizations = gapi.GapiCustomizations(
+            custom_imports=[
+                "from pydantic import NaiveDatetime",
+            ],
+            # Need to include a usage of NaiveDatetime to ensure the import is not
+            # removed by ruff.
+            custom_fields=[
+                gapi.CustomField(
+                    class_name="Model",
+                    field_name="field_datetime",
+                    new_field="field_datetime: NaiveDatetime",
+                ),
+            ],
+        )
+
+        try:
+            gapi.apply_customizations(temp_model_path, customizations)
+            content = temp_model_path.read_text()
+
+            # The custom import will be merged into the pydantic import by ruff so the
+            # string to be checked does not match the input.
+            assert (
+                "import AwareDatetime, BaseModel, ConfigDict, Field, NaiveDatetime"
+                in content
+            )
+
+        finally:
+            temp_model_path.unlink()
