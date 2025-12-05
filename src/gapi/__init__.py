@@ -328,7 +328,11 @@ def _replace_untyped_lists(model_path: Path) -> None:
 
 
 def remove_all_redundant_files(root_directory: Path) -> None:
-    """Remove redundant JSON files that do not change the model."""
+    """Remove redundant JSON files that produce the same schema.
+
+    Args:
+        root_directory: The root directory containing model subdirectories.
+    """
     for model in root_directory.iterdir():
         if model.name == ".git" or model.is_file():
             continue
