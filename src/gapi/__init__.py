@@ -246,41 +246,6 @@ def generate_pydantic_model(
     _replace_untyped_lists(output_file)
 
 
-def generate_multiple_json_schemas_and_pydantic_models(
-    root_file_path: Path,
-    code_path: Path,
-    schema_file_name: str = "schema",
-    model_file_name: str = "models",
-    sub_files_path: Path | None = None,
-) -> None:
-    if not sub_files_path:
-        sub_files_path = root_file_path
-
-    for input_folder in sub_files_path.iterdir():
-        if input_folder.name in {".git", "_temp"} or input_folder.is_file():
-            continue
-
-        name = str(input_folder.relative_to(root_file_path))
-        schema_path = code_path / f"{name}/{schema_file_name}.json"
-        model_path = code_path / f"{name}/{model_file_name}.py"
-        name = name.replace("/", "_").replace("\\", "_")
-
-        schema_path.unlink(missing_ok=True)
-        model_path.unlink(missing_ok=True)
-
-        json_files = list(input_folder.glob("*.json"))
-        update_json_schema_and_pydantic_model(json_files, schema_path, model_path, name)
-
-        # Recursion is useful in some situations.
-        generate_multiple_json_schemas_and_pydantic_models(
-            root_file_path,
-            code_path,
-            schema_file_name,
-            model_file_name,
-            input_folder,
-        )
-
-
 def update_json_schema_and_pydantic_model(
     data: INPUT_TYPE | list[Path] | Path,
     schema_path: Path,
