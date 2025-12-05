@@ -272,6 +272,10 @@ def update_json_schema_and_pydantic_model(
         schema = generate_json_schema(data, schema_path)
     else:
         schema = generate_json_schema(data)
+
+    schema_path.parent.mkdir(parents=True, exist_ok=True)
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+
     schema_path.write_text(schema.to_json())
     generate_pydantic_model(schema, model_path, class_name)
 
