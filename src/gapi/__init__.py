@@ -247,16 +247,20 @@ def generate_pydantic_model(
 
 
 def generate_multiple_json_schemas_and_pydantic_models(
-    files_path: Path,
+    root_file_path: Path,
     code_path: Path,
     schema_file_name: str = "schema",
     model_file_name: str = "models",
+    sub_files_path: Path | None = None,
 ) -> None:
-    for input_folder in files_path.iterdir():
+    if not sub_files_path:
+        sub_files_path = root_file_path
+
+    for input_folder in sub_files_path.iterdir():
         if input_folder.name in {".git", "_temp"} or input_folder.is_file():
             continue
 
-        name = str(input_folder.relative_to(files_path))
+        name = str(input_folder.relative_to(root_file_path))
         schema_path = code_path / f"{name}/{schema_file_name}.json"
         model_path = code_path / f"{name}/{model_file_name}.py"
         name = name.replace("/", "_").replace("\\", "_")
@@ -269,10 +273,11 @@ def generate_multiple_json_schemas_and_pydantic_models(
 
         # Recursion is useful in some situations.
         generate_multiple_json_schemas_and_pydantic_models(
-            input_folder,
+            root_file_path,
             code_path,
             schema_file_name,
             model_file_name,
+            input_folder,
         )
 
 
