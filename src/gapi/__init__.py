@@ -327,6 +327,18 @@ def _replace_untyped_lists(model_path: Path) -> None:
     model_path.write_text(model_content)
 
 
+def remove_all_redundant_files(root_directory: Path) -> None:
+    """Remove redundant JSON files that do not change the model."""
+    for model in root_directory.iterdir():
+        if model.name == ".git" or model.is_file():
+            continue
+
+        json_files = list(model.glob("*.json"))
+        remove_redundant_files(json_files)
+
+        remove_all_redundant_files(model)
+
+
 def remove_redundant_files(
     input_files: Path | list[Path],
     logger: Logger = default_logger,
