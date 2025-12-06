@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 from logging import Logger, getLogger
 from pathlib import Path
-from typing import Any, overload
+from typing import Any, TypeIs, overload
 
 import datamodel_code_generator
 from degenson import SchemaBuilder
@@ -87,7 +87,13 @@ def _load_original_schema(
         if isinstance(original_schema, str):
             original_schema = json.loads(original_schema)
 
-        builder.add_schema(original_schema)
+        # reportUnknownMemberType - Error is from the library.
+        builder.add_schema(original_schema)  # type: ignore[reportUnknownMemberType]
+
+
+def _is_list_of_paths(value: Path | list[Path] | INPUT_TYPE) -> TypeIs[list[Path]]:
+    """Type guard to check if a value is a list of Path objects."""
+    return isinstance(value, list) and all(isinstance(item, Path) for item in value)
 
 
 def _parse_list_of_files(file_list: list[Path]) -> INPUT_TYPE:
@@ -109,13 +115,10 @@ def _parse_schema_input(
     *,
     multiple_inputs: bool | None,
 ) -> tuple[INPUT_TYPE, bool | None]:
-    if isinstance(schema_input, list) and all(
-        isinstance(path, Path) for path in schema_input
-    ):
+    if _is_list_of_paths(schema_input):
         if multiple_inputs is None:
             multiple_inputs = True
-        # reportArgumentType - The type is correct because of the if condition above.
-        parsed_data = _parse_list_of_files(schema_input)  # type: ignore[reportArgumentType]
+        parsed_data = _parse_list_of_files(schema_input)
         return parsed_data, multiple_inputs
 
     if isinstance(schema_input, Path):
