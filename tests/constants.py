@@ -3,14 +3,23 @@ from pathlib import Path
 from gapi.constants import MAIN_TYPE
 
 TEST_DATA_FOLDER = Path("tests/test_data/")
-TEST_SCHEMA_PATH = TEST_DATA_FOLDER / "test_schema.json"
-TEST_SCHEMA_NO_CONVERT_PATH = TEST_DATA_FOLDER / "test_schema_no_convert.json"
-TEST_SCHEMA_UPDATED_PATH = TEST_DATA_FOLDER / "test_schema_updated.json"
-TEST_SCHEMA_UPDATED_NO_CONVERT_PATH = (
-    TEST_DATA_FOLDER / "test_schema_updated_no_convert.json"
+
+SCHEMA_PATH = TEST_DATA_FOLDER / "schema.json"
+SCHEMA_NO_CONVERT_PATH = TEST_DATA_FOLDER / "schema_no_convert.json"
+SCHEMA_UPDATED_PATH = TEST_DATA_FOLDER / "schema_updated.json"
+SCHEMA_UPDATED_NO_CONVERT_PATH = TEST_DATA_FOLDER / "schema_updated_no_convert.json"
+
+MODEL_PATH = TEST_DATA_FOLDER / "models.py"
+MODEL_UPDATED_PATH = TEST_DATA_FOLDER / "models_updated.py"
+MODEL_CUSTOM_FIELD_SINGLE_LINE_PATH = (
+    TEST_DATA_FOLDER / "models_custom_field_single_line.py"
 )
-EXPECTED_SCHEMA_PATH = TEST_DATA_FOLDER / "expected_schema.py"
-UPDATED_EXPECTED_SCHEMA_PATH = TEST_DATA_FOLDER / "expected_schema_updated.py"
+MODEL_CUSTOM_FIELD_MULTIPLE_LINES_PATH = (
+    TEST_DATA_FOLDER / "models_custom_field_multiple_lines.py"
+)
+MODEL_CUSTOM_MULTIPLE_LINE_SERIALIZER_PATH = (
+    TEST_DATA_FOLDER / "models_custom_multiple_line_serializer.py"
+)
 
 # TODO: Test for optional data
 TEST_DATA: dict[str, MAIN_TYPE] = {
