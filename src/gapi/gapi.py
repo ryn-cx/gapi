@@ -36,8 +36,8 @@ class GapiCustomizations(BaseModel):
 class GAPI:
     def __init__(
         self,
-        builder: SchemaBuilder | None = None,
         class_name: str | None = None,
+        builder: SchemaBuilder | None = None,
         *,
         convert: bool = True,
     ) -> None:

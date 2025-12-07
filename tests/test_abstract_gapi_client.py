@@ -31,7 +31,7 @@ class TestGapiClient(gapi.AbstractGapiClient):
         """Update the model by regenerating it from the saved files."""
         schema_path = test_dir / "schema.json"
         model_path = test_dir / "models.py"
-        generator = gapi.GAPI(class_name=name)
+        generator = gapi.GAPI(name)
         generator.add_schema_from_file(schema_path)
         for file in self._files_path.glob(f"{name}.json"):
             generator.add_object_from_file(file)
