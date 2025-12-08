@@ -11,6 +11,7 @@ from tests.constants import (
     MODEL_CUSTOM_FIELD_MULTIPLE_LINES_PATH,
     MODEL_CUSTOM_FIELD_SINGLE_LINE_PATH,
     MODEL_CUSTOM_MULTIPLE_LINE_SERIALIZER_PATH,
+    MODEL_CUSTOM_TYPED_SERIALIZER_PATH,
     MODEL_PATH,
     MODEL_UPDATED_PATH,
     SCHEMA_NO_CONVERT_PATH,
@@ -307,6 +308,8 @@ class TestCustomFields:
             == MODEL_CUSTOM_FIELD_MULTIPLE_LINES_PATH.read_text()
         )
 
+
+class TestCustomSerializers:
     def test_add_string_serializer(
         self,
     ) -> None:
@@ -343,6 +346,27 @@ class TestCustomFields:
             == MODEL_CUSTOM_MULTIPLE_LINE_SERIALIZER_PATH.read_text()
         )
 
+    def test_add_typed_serializer(
+        self,
+    ) -> None:
+        """Test applying GAPI customizations with input and output types."""
+        generator = gapi.GAPI()
+        generator.add_object_from_dict(TEST_DATA)
+        generator.add_custom_serializer(
+            field_name="field_datetime",
+            serializer_code=[
+                'strf_string = "%Y-%m-%dT%H:%M:%S.%f"',
+                "return value.strftime(strf_string)",
+            ],
+            input_type="AwareDatetime",
+            output_type="str",
+            class_name="Model",
+        )
+        assert (
+            generator.get_pydantic_model_content()
+            == MODEL_CUSTOM_TYPED_SERIALIZER_PATH.read_text()
+        )
+
     def test_add_serializer_to_all_classes(
         self,
     ) -> None:
@@ -359,6 +383,8 @@ class TestCustomFields:
             == MODEL_CUSTOM_MULTIPLE_LINE_SERIALIZER_PATH.read_text()
         )
 
+
+class TestCustomImports:
     def test_add_custom_import(self) -> None:
         """Test adding custom imports after the filename comment line."""
         generator = gapi.GAPI()

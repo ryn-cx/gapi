@@ -20,6 +20,9 @@ MODEL_CUSTOM_FIELD_MULTIPLE_LINES_PATH = (
 MODEL_CUSTOM_MULTIPLE_LINE_SERIALIZER_PATH = (
     TEST_DATA_FOLDER / "models_custom_multiple_line_serializer.py"
 )
+MODEL_CUSTOM_TYPED_SERIALIZER_PATH = (
+    TEST_DATA_FOLDER / "models_custom_typed_serializer.py"
+)
 
 # TODO: Test for optional data
 TEST_DATA: dict[str, MAIN_TYPE] = {

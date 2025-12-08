@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_serializer
 
@@ -18,7 +17,7 @@ class FieldDict(BaseModel):
 
 class Model(BaseModel):
     @field_serializer("field_datetime")
-    def serialize_field_datetime(self, value: Any) -> Any:
+    def serialize_field_datetime(self, value: AwareDatetime) -> str:
         strf_string = "%Y-%m-%dT%H:%M:%S.%f"
         return value.strftime(strf_string)
 

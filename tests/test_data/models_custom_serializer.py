@@ -18,7 +18,7 @@ class FieldDict(BaseModel):
 
 class Model(BaseModel):
     @field_serializer("field_datetime")
-    def serialize_datetime(self, value: Any, _info: Any) -> Any:
+    def serialize_datetime(self, value: Any) -> Any:
         return value.strftime("%Y-%m-%dT%H:%M:%S.%f")
 
     model_config = ConfigDict(
