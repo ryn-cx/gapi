@@ -24,12 +24,11 @@ class AbstractGapiClient:
     def update_model(
         self,
         name: str,
-        model_type: str | None,
         new_file_path: Path,
         customizations: GapiCustomizations | None = None,
     ) -> None:
-        schema_path = self.schema_path(name, model_type)
-        model_path = self.models_path(name, model_type)
+        schema_path = self.schema_path(name)
+        model_path = self.models_path(name)
 
         client = GAPI(name.replace("/", "_"))
         client.add_schema_from_file(schema_path)
@@ -42,12 +41,9 @@ class AbstractGapiClient:
         self,
         name: str,
         data: dict[str, Any],
-        model_type: str | None,
     ) -> Path:
         """Add a new test file for a given endpoint."""
         input_folder = self.files_path() / name
-        if model_type:
-            input_folder = input_folder / model_type
 
         new_json_path = input_folder / f"{uuid.uuid4()}.json"
         new_json_path.parent.mkdir(parents=True, exist_ok=True)
@@ -76,14 +72,10 @@ class AbstractGapiClient:
     def files_path(self) -> Path:
         return self.client_path() / "_files"
 
-    def schema_path(self, name: str, model_type: str | None) -> Path:
-        if model_type:
-            return self.client_path() / f"{name}/{model_type}.schema.json"
+    def schema_path(self, name: str) -> Path:
         return self.client_path() / f"{name}/schema.json"
 
-    def models_path(self, name: str, model_type: str | None) -> Path:
-        if model_type:
-            return self.client_path() / f"{name}/{model_type}_models.py"
+    def models_path(self, name: str) -> Path:
         return self.client_path() / f"{name}/models.py"
 
     def parse_response[T: BaseModel](
@@ -92,20 +84,19 @@ class AbstractGapiClient:
         data: dict[str, Any],
         name: str,
         customizations: GapiCustomizations | None = None,
-        model_type: str | None = None,
     ) -> T:
         try:
             parsed = response_model.model_validate(data)
         except ValidationError:
-            new_file_path = self.save_file(name, data, model_type)
-            self.update_model(name, model_type, new_file_path, customizations)
+            new_file_path = self.save_file(name, data)
+            self.update_model(name, new_file_path, customizations)
             response_model = self.reload_model(response_model)
             parsed = response_model.model_validate(data)
             if getattr(self, "logger", None):
                 self.logger.info("Updated model %s.", response_model.__name__)
 
         if self.dump_response(parsed) != data:
-            self.save_file(name, data, model_type)
+            self.save_file(name, data)
             temp_path = self.files_path() / "_temp"
             named_temp_path = temp_path / name
             named_temp_path.mkdir(parents=True, exist_ok=True)
