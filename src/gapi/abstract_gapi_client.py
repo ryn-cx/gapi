@@ -2,6 +2,7 @@ import importlib
 import json
 import logging
 import sys
+import uuid
 from abc import abstractmethod
 from logging import getLogger
 from pathlib import Path
@@ -9,13 +10,45 @@ from typing import Any, overload
 
 from pydantic import BaseModel, ValidationError
 
-from .gapi import GapiCustomizations
+from .gapi import GAPI, GapiCustomizations
 
 default_logger = getLogger(__name__)
 
 
 class AbstractGapiClient:
     logger: logging.Logger = default_logger
+
+    @abstractmethod
+    def client_path(self) -> Path: ...
+
+    @abstractmethod
+    def update_model(
+        self,
+        name: str,
+        model_type: str,
+        new_file_path: Path,
+        customizations: GapiCustomizations | None = None,
+    ) -> None:
+        schema_path = self.schema_path(name, model_type)
+        model_path = self.model_path(name, model_type)
+
+        client = GAPI(name.replace("/", "_"))
+        client.add_schema_from_file(schema_path)
+        client.add_object_from_file(new_file_path)
+        client.write_json_schema_to_file(schema_path)
+        client.write_pydantic_model_to_file(model_path)
+
+    @abstractmethod
+    def save_file(self, name: str, data: dict[str, Any], model_type: str) -> Path:
+        """Add a new test file for a given endpoint."""
+        input_folder = self.files_path() / name
+        if model_type:
+            input_folder = input_folder / model_type
+
+        new_json_path = input_folder / f"{uuid.uuid4()}.json"
+        new_json_path.parent.mkdir(parents=True, exist_ok=True)
+        new_json_path.write_text(json.dumps(data, indent=2))
+        return new_json_path
 
     @overload
     def dump_response(
@@ -37,18 +70,18 @@ class AbstractGapiClient:
         return data.model_dump(mode="json", by_alias=True, exclude_unset=True)
 
     @abstractmethod
-    def save_file(self, name: str, data: dict[str, Any], model_type: str) -> None: ...
+    def files_path(self) -> Path:
+        return self.client_path() / "files"
 
-    @abstractmethod
-    def update_model(
-        self,
-        name: str,
-        model_type: str,
-        customizations: GapiCustomizations | None = None,
-    ) -> None: ...
+    def schema_path(self, name: str, model_type: str) -> Path:
+        if model_type:
+            return self.files_path() / f"{name}/{model_type}.schema.json"
+        return self.files_path() / f"{name}/schema.json"
 
-    @abstractmethod
-    def files_path(self) -> Path: ...
+    def model_path(self, name: str, model_type: str) -> Path:
+        if model_type:
+            return self.files_path() / f"{name}/{model_type}_model.py"
+        return self.files_path() / f"{name}/model.py"
 
     def parse_response[T: BaseModel](
         self,
@@ -60,8 +93,8 @@ class AbstractGapiClient:
         try:
             parsed = response_model.model_validate(data)
         except ValidationError:
-            self.save_file(name, data, "response")
-            self.update_model(name, "response", customizations)
+            new_file_path = self.save_file(name, data, "response")
+            self.update_model(name, "response", new_file_path, customizations)
             response_model = self.reload_model(response_model)
             parsed = response_model.model_validate(data)
             if getattr(self, "logger", None):
