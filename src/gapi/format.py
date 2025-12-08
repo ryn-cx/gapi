@@ -23,6 +23,10 @@ def format_with_ruff(content: str) -> str:
         check=False,
     )
 
+    if not check_result.stdout:
+        msg = f"Ruff formatting failed with error: {check_result.stderr}"
+        raise RuntimeError(msg)
+
     format_result = subprocess.run(
         ["uv", "run", "ruff", "format", "--stdin-filename", "temp.py", "-"],  # noqa: S607
         input=check_result.stdout,
@@ -31,8 +35,8 @@ def format_with_ruff(content: str) -> str:
         check=False,
     )
 
-    if not format_result:
-        msg = "Ruff formatting failed"
+    if not format_result.stdout:
+        msg = f"Ruff formatting failed with error: {format_result.stderr}"
         raise RuntimeError(msg)
 
     return format_result.stdout
