@@ -75,13 +75,13 @@ class AbstractGapiClient:
 
     def schema_path(self, name: str, model_type: str) -> Path:
         if model_type:
-            return self.files_path() / f"{name}/{model_type}.schema.json"
-        return self.files_path() / f"{name}/schema.json"
+            return self.client_path() / f"{name}/{model_type}.schema.json"
+        return self.client_path() / f"{name}/schema.json"
 
     def model_path(self, name: str, model_type: str) -> Path:
         if model_type:
-            return self.files_path() / f"{name}/{model_type}_model.py"
-        return self.files_path() / f"{name}/model.py"
+            return self.client_path() / f"{name}/{model_type}_model.py"
+        return self.client_path() / f"{name}/model.py"
 
     def parse_response[T: BaseModel](
         self,
