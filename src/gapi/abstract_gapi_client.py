@@ -91,6 +91,7 @@ class AbstractGapiClient:
         client.add_customizations(customizations)
         client.write_json_schema_to_file(schema_path)
         client.write_pydantic_model_to_file(model_path)
+        (self.client_path() / name / "__init__.py").touch()
 
     def parse_response[T: BaseModel](
         self,
