@@ -24,7 +24,28 @@ class CustomField(BaseModel):
 class CustomSerializer(BaseModel):
     class_name: str | None = None
     field_name: str
-    serializer_code: str
+    serializer_code: list[str] | str
+    input_type: str | None = None
+    output_type: str | None = None
+
+    def generate_serializer_function(self) -> str:
+        """Generate a complete serializer function string.
+
+        Returns:
+            The complete serializer function as a formatted string.
+        """
+        serializer_code = self.serializer_code
+        if isinstance(serializer_code, str):
+            serializer_code = serializer_code.split("\n")
+
+        return (
+            f'    @field_serializer("{self.field_name}")\n'
+            f"    def serialize_{self.field_name}"
+            f"(self, value: {self.input_type or 'Any'})"
+            f"-> {self.output_type or 'Any'}:\n"
+            "        "
+            f"{'\n        '.join(serializer_code)}"
+        )
 
 
 class GapiCustomizations(BaseModel):
@@ -77,6 +98,8 @@ class GAPI:
                 class_name=custom_serializer.class_name,
                 field_name=custom_serializer.field_name,
                 serializer_code=custom_serializer.serializer_code,
+                input_type=custom_serializer.input_type,
+                output_type=custom_serializer.output_type,
             )
         for import_line in customizations.custom_imports:
             self.add_additional_import(import_line)
@@ -108,6 +131,8 @@ class GAPI:
         self,
         field_name: str,
         serializer_code: str | list[str],
+        input_type: str | None = None,
+        output_type: str | None = None,
         class_name: str | None = None,
     ) -> None:
         """Add a custom serializer to the GapiCustomizations.
@@ -117,18 +142,15 @@ class GAPI:
             serializer_code: The serializer method code as a string.
             class_name: The name of the class to add the custom serializer to.
                 If None, applies to all classes with this field.
+            input_type: The input type annotation for the serializer method.
+            output_type: The output type annotation for the serializer method.
         """
-        if isinstance(serializer_code, str):
-            serializer_code = serializer_code.split("\n")
-
-        serializer_code = f"""    @field_serializer("{field_name}")
-    def serialize_{field_name}(self, value: Any, _info: Any) -> Any:
-        {"\n        ".join(serializer_code)}
-"""
         custom_serializer = CustomSerializer(
             class_name=class_name,
             field_name=field_name,
             serializer_code=serializer_code,
+            input_type=input_type,
+            output_type=output_type,
         )
         self.additional_serializers.append(custom_serializer)
 
@@ -257,7 +279,7 @@ class GAPI:
             output_path: Path to the output JSON schema file.
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(self.get_json_schema_content())
+        output_path.write_text(self.get_json_schema_content() + "\n")
 
     def get_pydantic_model_content(
         self,
@@ -396,7 +418,9 @@ class GAPI:
         for serializer in self.additional_serializers:
             if serializer.class_name:
                 class_line = f"class {serializer.class_name}(BaseModel):"
-                replacement = class_line + "\n" + serializer.serializer_code
+                replacement = (
+                    class_line + "\n" + serializer.generate_serializer_function()
+                )
                 model_content = model_content.replace(class_line, replacement)
             # If no class is specified add the serializer to all classes with the field.
             else:
@@ -404,7 +428,11 @@ class GAPI:
                 for class_name in self._get_all_class_names(lines):
                     if self._class_has_field(lines, class_name, serializer.field_name):
                         class_line = f"class {class_name}(BaseModel):"
-                        replacement = class_line + "\n" + serializer.serializer_code
+                        replacement = (
+                            class_line
+                            + "\n"
+                            + serializer.generate_serializer_function()
+                        )
                         model_content = model_content.replace(class_line, replacement)
 
         return model_content
