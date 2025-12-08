@@ -289,6 +289,7 @@ class GAPI:
 
         content = temp_path.read_text()
         temp_path.unlink()
+        content = format_with_ruff(content)
         content = self._replace_untyped_lists(content)
         content = self._apply_additional_imports(content)
         content = self._apply_replacement_fields(content)
@@ -413,7 +414,7 @@ class GAPI:
         for i, line in enumerate(lines):
             if "#   filename:  <stdin>" in line:
                 for j, import_line in enumerate(self.additional_imports):
-                    lines.insert(i + 1 + j, f"{import_line}\n")
+                    lines.insert(i + 2 + j, f"{import_line}\n")
 
         return "\n".join(lines)
 
