@@ -31,4 +31,8 @@ def format_with_ruff(content: str) -> str:
         check=False,
     )
 
+    if not format_result:
+        msg = "Ruff formatting failed"
+        raise RuntimeError(msg)
+
     return format_result.stdout

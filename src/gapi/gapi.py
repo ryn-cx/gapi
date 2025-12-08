@@ -66,9 +66,20 @@ class GAPI:
         if not customizations:
             return
 
-        self.replacement_fields.extend(customizations.custom_fields)
-        self.additional_serializers.extend(customizations.custom_serializers)
-        self.additional_imports.extend(customizations.custom_imports)
+        for custom_field in customizations.custom_fields:
+            self.add_replacement_field(
+                class_name=custom_field.class_name,
+                field_name=custom_field.field_name,
+                new_field=custom_field.new_field,
+            )
+        for custom_serializer in customizations.custom_serializers:
+            self.add_custom_serializer(
+                class_name=custom_serializer.class_name,
+                field_name=custom_serializer.field_name,
+                serializer_code=custom_serializer.serializer_code,
+            )
+        for import_line in customizations.custom_imports:
+            self.add_additional_import(import_line)
 
     def add_replacement_field(
         self,
