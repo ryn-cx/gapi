@@ -54,12 +54,18 @@ class GAPI:
         self.additional_serializers: list[CustomSerializer] = []
         self.additional_imports: list[str] = []
 
-    def add_customization(self, customizations: GapiCustomizations) -> None:
+    def add_customizations(
+        self,
+        customizations: GapiCustomizations | None = None,
+    ) -> None:
         """Add customizations to the GapiCustomizations.
 
         Args:
             customizations: The GapiCustomizations to add.
         """
+        if not customizations:
+            return
+
         self.replacement_fields.extend(customizations.custom_fields)
         self.additional_serializers.extend(customizations.custom_serializers)
         self.additional_imports.extend(customizations.custom_imports)

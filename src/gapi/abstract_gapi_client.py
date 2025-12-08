@@ -30,16 +30,22 @@ class AbstractGapiClient:
         customizations: GapiCustomizations | None = None,
     ) -> None:
         schema_path = self.schema_path(name, model_type)
-        model_path = self.model_path(name, model_type)
+        model_path = self.models_path(name, model_type)
 
         client = GAPI(name.replace("/", "_"))
         client.add_schema_from_file(schema_path)
         client.add_object_from_file(new_file_path)
+        client.add_customizations(customizations)
         client.write_json_schema_to_file(schema_path)
         client.write_pydantic_model_to_file(model_path)
 
     @abstractmethod
-    def save_file(self, name: str, data: dict[str, Any], model_type: str) -> Path:
+    def save_file(
+        self,
+        name: str,
+        data: dict[str, Any],
+        model_type: str | None,
+    ) -> Path:
         """Add a new test file for a given endpoint."""
         input_folder = self.files_path() / name
         if model_type:
@@ -71,17 +77,17 @@ class AbstractGapiClient:
 
     @abstractmethod
     def files_path(self) -> Path:
-        return self.client_path() / "files"
+        return self.client_path() / "_files"
 
     def schema_path(self, name: str, model_type: str) -> Path:
         if model_type:
             return self.client_path() / f"{name}/{model_type}.schema.json"
         return self.client_path() / f"{name}/schema.json"
 
-    def model_path(self, name: str, model_type: str) -> Path:
+    def models_path(self, name: str, model_type: str) -> Path:
         if model_type:
-            return self.client_path() / f"{name}/{model_type}_model.py"
-        return self.client_path() / f"{name}/model.py"
+            return self.client_path() / f"{name}/{model_type}_models.py"
+        return self.client_path() / f"{name}/models.py"
 
     def parse_response[T: BaseModel](
         self,
@@ -89,19 +95,20 @@ class AbstractGapiClient:
         data: dict[str, Any],
         name: str,
         customizations: GapiCustomizations | None = None,
+        model_type: str | None = None,
     ) -> T:
         try:
             parsed = response_model.model_validate(data)
         except ValidationError:
-            new_file_path = self.save_file(name, data, "response")
-            self.update_model(name, "response", new_file_path, customizations)
+            new_file_path = self.save_file(name, data, model_type)
+            self.update_model(name, model_type, new_file_path, customizations)
             response_model = self.reload_model(response_model)
             parsed = response_model.model_validate(data)
             if getattr(self, "logger", None):
                 self.logger.info("Updated model %s.", response_model.__name__)
 
         if self.dump_response(parsed) != data:
-            self.save_file(name, data, "response")
+            self.save_file(name, data, model_type)
             temp_path = self.files_path() / "_temp"
             named_temp_path = temp_path / name
             named_temp_path.mkdir(parents=True, exist_ok=True)
