@@ -15,17 +15,18 @@ class TestGapiClient(gapi.AbstractGapiClient):
         self._files_path = test_dir / "files"
 
     @override
-    def save_file(self, name: str, data: dict[str, Any], model_type: str) -> None:
+    def save_file(self, name: str, data: dict[str, Any]) -> Path:
         """Save the API response data to a file."""
         self._files_path.mkdir(parents=True, exist_ok=True)
         file_path = self._files_path / f"{name}.json"
         file_path.write_text(json.dumps(data, indent=2))
+        return file_path
 
     @override
     def update_model(
         self,
         name: str,
-        model_type: str,
+        new_file_path: Path,
         customizations: gapi.GapiCustomizations | None = None,
     ) -> None:
         """Update the model by regenerating it from the saved files."""
@@ -56,8 +57,8 @@ def test_run_test() -> None:
     # Make initial model that only supports strings
     initial_data = {"value": "string"}
     client = TestGapiClient()
-    client.save_file("test_model", initial_data, "response")
-    client.update_model("test_model", "response")
+    new_file_path = client.save_file("test_model", initial_data)
+    client.update_model("test_model", new_file_path)
 
     # PLC0415 & I001: The import needs to happen after the file is written.
     from .abstract_client_test_files import models  # noqa: PLC0415
