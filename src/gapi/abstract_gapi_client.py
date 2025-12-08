@@ -78,6 +78,20 @@ class AbstractGapiClient:
     def models_path(self, name: str) -> Path:
         return self.client_path() / f"{name}/models.py"
 
+    def rebuild_model(
+        self,
+        name: str,
+        customizations: GapiCustomizations | None = None,
+    ) -> None:
+        schema_path = self.schema_path(name)
+        model_path = self.models_path(name)
+
+        client = GAPI(name.replace("/", "_"))
+        client.add_objects_from_folder(self.files_path() / name)
+        client.add_customizations(customizations)
+        client.write_json_schema_to_file(schema_path)
+        client.write_pydantic_model_to_file(model_path)
+
     def parse_response[T: BaseModel](
         self,
         response_model: type[T],
