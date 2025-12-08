@@ -21,7 +21,7 @@ class AbstractGapiClient:
     @abstractmethod
     def client_path(self) -> Path: ...
 
-    def update_model(
+    def update_models(
         self,
         name: str,
         new_file_path: Path,
@@ -78,7 +78,7 @@ class AbstractGapiClient:
     def models_path(self, name: str) -> Path:
         return self.client_path() / f"{name}/models.py"
 
-    def rebuild_model(
+    def rebuild_models(
         self,
         name: str,
         customizations: GapiCustomizations | None = None,
@@ -103,8 +103,8 @@ class AbstractGapiClient:
             parsed = response_model.model_validate(data)
         except ValidationError:
             new_file_path = self.save_file(name, data)
-            self.update_model(name, new_file_path, customizations)
-            response_model = self.reload_model(response_model)
+            self.update_models(name, new_file_path, customizations)
+            response_model = self.reload_models(response_model)
             parsed = response_model.model_validate(data)
             if getattr(self, "logger", None):
                 self.logger.info("Updated model %s.", response_model.__name__)
@@ -123,7 +123,7 @@ class AbstractGapiClient:
 
         return parsed
 
-    def reload_model[T: BaseModel](self, model_class: type[T]) -> type[T]:
+    def reload_models[T: BaseModel](self, model_class: type[T]) -> type[T]:
         """Dynamically reload a model class by reloading its module.
 
         Returns:

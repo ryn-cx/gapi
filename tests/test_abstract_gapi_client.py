@@ -23,7 +23,7 @@ class TestGapiClient(gapi.AbstractGapiClient):
         return file_path
 
     @override
-    def update_model(
+    def update_models(
         self,
         name: str,
         new_file_path: Path,
@@ -58,7 +58,7 @@ def test_run_test() -> None:
     initial_data = {"value": "string"}
     client = TestGapiClient()
     new_file_path = client.save_file("test_model", initial_data)
-    client.update_model("test_model", new_file_path)
+    client.update_models("test_model", new_file_path)
 
     # PLC0415 & I001: The import needs to happen after the file is written.
     from .abstract_client_test_files import models  # noqa: PLC0415
