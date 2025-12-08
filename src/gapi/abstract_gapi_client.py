@@ -21,11 +21,10 @@ class AbstractGapiClient:
     @abstractmethod
     def client_path(self) -> Path: ...
 
-    @abstractmethod
     def update_model(
         self,
         name: str,
-        model_type: str,
+        model_type: str | None,
         new_file_path: Path,
         customizations: GapiCustomizations | None = None,
     ) -> None:
@@ -39,7 +38,6 @@ class AbstractGapiClient:
         client.write_json_schema_to_file(schema_path)
         client.write_pydantic_model_to_file(model_path)
 
-    @abstractmethod
     def save_file(
         self,
         name: str,
@@ -75,16 +73,15 @@ class AbstractGapiClient:
 
         return data.model_dump(mode="json", by_alias=True, exclude_unset=True)
 
-    @abstractmethod
     def files_path(self) -> Path:
         return self.client_path() / "_files"
 
-    def schema_path(self, name: str, model_type: str) -> Path:
+    def schema_path(self, name: str, model_type: str | None) -> Path:
         if model_type:
             return self.client_path() / f"{name}/{model_type}.schema.json"
         return self.client_path() / f"{name}/schema.json"
 
-    def models_path(self, name: str, model_type: str) -> Path:
+    def models_path(self, name: str, model_type: str | None) -> Path:
         if model_type:
             return self.client_path() / f"{name}/{model_type}_models.py"
         return self.client_path() / f"{name}/models.py"

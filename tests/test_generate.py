@@ -257,6 +257,19 @@ class TestGeneratePydanticModel:
         finally:
             output_file.unlink()
 
+    def test_datetime_string_and_none(self) -> None:
+        """Test generating Pydantic model from JSON schema file."""
+        generator = gapi.GAPI()
+        generator.add_object_from_dict(
+            {"key": "S1 E6 - Hero Without a Class: Who Even Needs Skills?!"},
+        )
+        generator.add_object_from_dict({"key": None})
+        generator.add_object_from_dict({"key": "2000-01-01T00:00:00Z"})
+        output = generator.get_pydantic_model_content()
+        assert "str" in output
+        assert "None" in output
+        assert "AwareDatetime" in output
+
 
 class TestCustomFields:
     def test_apply_single_line_customization(
