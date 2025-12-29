@@ -2,7 +2,7 @@ import importlib
 import json
 import logging
 import sys
-import uuid
+import time
 from abc import abstractmethod
 from logging import getLogger
 from pathlib import Path
@@ -45,7 +45,7 @@ class AbstractGapiClient:
         """Add a new test file for a given endpoint."""
         input_folder = self.files_path() / name
 
-        new_json_path = input_folder / f"{uuid.uuid4()}.json"
+        new_json_path = input_folder / f"{time.time()}.json"
         new_json_path.parent.mkdir(parents=True, exist_ok=True)
         new_json_path.write_text(json.dumps(data, indent=2))
         return new_json_path
