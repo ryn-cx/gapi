@@ -8,19 +8,23 @@ from .gapi import GAPI
 default_logger = getLogger(__name__)
 
 
-def recursively_remove_redundant_files(root_directory: Path) -> None:
+def recursively_remove_redundant_files(
+    root_directory: Path,
+    logger: Logger = default_logger,
+) -> None:
     """Remove redundant JSON files that produce the same schema.
 
     Args:
         root_directory: The root directory containing model subdirectories.
+        logger: Logger instance to use for logging redundant files.
     """
     for model in root_directory.iterdir():
         if model.name == ".git" or model.is_file():
             continue
 
         json_files = list(model.glob("*.json"))
-        remove_redundant_files(json_files)
-        recursively_remove_redundant_files(model)
+        remove_redundant_files(json_files, logger)
+        recursively_remove_redundant_files(model, logger)
 
 
 def remove_redundant_files(
