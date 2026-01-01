@@ -461,5 +461,5 @@ class GAPI:
         return model_content
 
     def _replace_untyped_lists(self, model_content: str) -> str:
-        model_content = model_content.replace(" list ", " list[None] ")
-        return model_content.replace(" list\n", " list[None]\n")
+        model_content = model_content.replace(" list[Any] ", " list[None] ")
+        return model_content.replace(" list[Any]\n", " list[None]\n")
